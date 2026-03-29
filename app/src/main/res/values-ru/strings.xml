@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LiteChat</string>
+
+    <!-- Sign In -->
+    <string name="sign_in">Войти</string>
+    <string name="email">Эл. почта</string>
+    <string name="password">Пароль</string>
+    <string name="signing_in">Вход&#8230;</string>
+    <string name="error_invalid_credentials">Неверный email или пароль</string>
+    <string name="error_network">Ошибка сети. Попробуйте снова.</string>
+    <string name="error_empty_fields">Введите email и пароль</string>
+    <string name="error_auto_login">Не удалось войти автоматически. Сервер может быть недоступен.</string>
+    <string name="retry">Повторить</string>
+
+    <!-- Conversations -->
+    <string name="conversations">Беседы</string>
+    <string name="start_chat">Начать чат</string>
+    <string name="no_conversations">Пока нет бесед</string>
+    <string name="sign_out">Выйти</string>
+    <string name="sign_out_confirm">Вы уверены, что хотите выйти?</string>
+    <string name="cancel">Отмена</string>
+
+    <!-- Chat -->
+    <string name="type_message">Введите сообщение&#8230;</string>
+    <string name="send">Отправить</string>
+    <string name="attachment">Вложение</string>
+    <string name="reply_to">Ответ: %s</string>
+    <string name="new_messages">Новые сообщения</string>
+    <string name="loading_messages">Загрузка сообщений&#8230;</string>
+    <string name="no_messages">Пока нет сообщений. Поздоровайтесь!</string>
+
+    <!-- Time -->
+    <string name="just_now">сейчас</string>
+    <string name="minutes_ago">%d мин</string>
+    <string name="hours_ago">%d ч</string>
+    <string name="yesterday">вчера</string>
+    <string name="today">Сегодня</string>
+    <string name="yesterday_label">Вчера</string>
+
+    <!-- Media -->
+    <string name="loading">Загрузка&#8230;</string>
+    <string name="error_loading_media">Не удалось загрузить медиа</string>
+
+    <!-- Misc -->
+    <string name="photo_attachment">Фото</string>
+    <string name="video_attachment">Видео</string>
+    <string name="file_attachment">Файл</string>
+</resources>

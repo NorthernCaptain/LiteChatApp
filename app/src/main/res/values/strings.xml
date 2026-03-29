@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LiteChat</string>
+
+    <!-- Sign In -->
+    <string name="sign_in">Sign In</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="signing_in">Signing in&#8230;</string>
+    <string name="error_invalid_credentials">Invalid email or password</string>
+    <string name="error_network">Network error. Please try again.</string>
+    <string name="error_empty_fields">Please enter email and password</string>
+    <string name="error_auto_login">Could not sign in automatically. The server may be unavailable.</string>
+    <string name="retry">Retry</string>
+
+    <!-- Conversations -->
+    <string name="conversations">Conversations</string>
+    <string name="start_chat">Start a chat</string>
+    <string name="no_conversations">No conversations yet</string>
+    <string name="sign_out">Sign Out</string>
+    <string name="sign_out_confirm">Are you sure you want to sign out?</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Chat -->
+    <string name="type_message">Type a message&#8230;</string>
+    <string name="send">Send</string>
+    <string name="attachment">Attachment</string>
+    <string name="reply_to">Reply to %s</string>
+    <string name="new_messages">New messages</string>
+    <string name="loading_messages">Loading messages&#8230;</string>
+    <string name="no_messages">No messages yet. Say hello!</string>
+
+    <!-- Time -->
+    <string name="just_now">just now</string>
+    <string name="minutes_ago">%dm</string>
+    <string name="hours_ago">%dh</string>
+    <string name="yesterday">yesterday</string>
+    <string name="today">Today</string>
+    <string name="yesterday_label">Yesterday</string>
+
+    <!-- Media -->
+    <string name="loading">Loading&#8230;</string>
+    <string name="error_loading_media">Could not load media</string>
+
+    <!-- Misc -->
+    <string name="photo_attachment">Photo</string>
+    <string name="video_attachment">Video</string>
+    <string name="file_attachment">File</string>
+</resources>
