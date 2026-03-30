@@ -18,16 +18,24 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-data class MediaUiState(
-    val attachmentId: String = "",
-    val filename: String = "",
-    val mimeType: String = "",
-    val isLoading: Boolean = true,
-    val originalUrl: String? = null,
-    val thumbnailUrl: String? = null,
+data class MediaItem(
+    val attachmentId: String,
+    val filename: String,
+    val mimeType: String,
+    val size: Long = 0,
+    val isVideo: Boolean,
+    val originalUrl: String,
+    val thumbnailUrl: String?,
     val localFilePath: String? = null,
-    val isVideo: Boolean = false,
+    val isLoading: Boolean = true,
+    val downloadProgress: Float = 0f,
     val error: String? = null
+)
+
+data class MediaUiState(
+    val items: List<MediaItem> = emptyList(),
+    val initialPage: Int = 0,
+    val isLoaded: Boolean = false
 )
 
 @HiltViewModel
@@ -39,45 +47,103 @@ class FullscreenMediaViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val attachmentId: String = savedStateHandle["attachmentId"] ?: ""
-    private val _uiState = MutableStateFlow(MediaUiState(attachmentId = attachmentId))
+    private val messageId: String? = savedStateHandle["messageId"]
+    private val _uiState = MutableStateFlow(MediaUiState())
     val uiState: StateFlow<MediaUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
             try {
                 val baseUrl = ApiConfig.BASE_URL
-                val originalUrl = "$baseUrl/litechat/api/v1/attachments/$attachmentId"
-                val thumbnailUrl = "$baseUrl/litechat/api/v1/attachments/$attachmentId/thumbnail"
+                val attachments = if (messageId != null) {
+                    messageDao.getAttachments(messageId)
+                } else {
+                    val att = messageDao.getAttachmentById(attachmentId)
+                    if (att != null) listOf(att) else emptyList()
+                }
 
-                val attachment = messageDao.getAttachmentById(attachmentId)
-                val mimeType = attachment?.mimeType ?: ""
-                val filename = attachment?.originalFilename ?: ""
-                val isVideo = mimeType.startsWith("video/")
-
-                _uiState.update {
-                    it.copy(
-                        filename = filename,
-                        mimeType = mimeType,
-                        originalUrl = originalUrl,
-                        thumbnailUrl = if (attachment?.hasThumbnail == true) thumbnailUrl else null,
-                        isVideo = isVideo
+                val items = attachments.map { att ->
+                    val isVideo = att.mimeType.startsWith("video/")
+                    MediaItem(
+                        attachmentId = att.id,
+                        filename = att.originalFilename,
+                        mimeType = att.mimeType,
+                        size = att.size,
+                        isVideo = isVideo,
+                        originalUrl = "$baseUrl/litechat/api/v1/attachments/${att.id}",
+                        thumbnailUrl = if (att.hasThumbnail) "$baseUrl/litechat/api/v1/attachments/${att.id}/thumbnail" else null,
+                        isLoading = isVideo
                     )
                 }
 
-                if (isVideo) {
-                    // Download video to local cache, then play from file
-                    val localFile = withContext(Dispatchers.IO) {
-                        attachmentRepository.downloadOriginal(attachmentId, filename)
-                    }
-                    _uiState.update {
-                        it.copy(localFilePath = localFile.absolutePath, isLoading = false)
-                    }
-                } else {
-                    // Images are loaded via Coil (already cached)
-                    _uiState.update { it.copy(isLoading = false) }
+                val initialPage = items.indexOfFirst { it.attachmentId == attachmentId }.coerceAtLeast(0)
+
+                _uiState.update {
+                    it.copy(items = items, initialPage = initialPage, isLoaded = true)
+                }
+
+                // Pre-download video for the initial page
+                items.getOrNull(initialPage)?.let { item ->
+                    if (item.isVideo) downloadVideo(item.attachmentId, item.filename)
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
+                _uiState.update {
+                    it.copy(
+                        items = listOf(MediaItem(
+                            attachmentId = attachmentId,
+                            filename = "",
+                            mimeType = "",
+                            isVideo = false,
+                            originalUrl = "",
+                            thumbnailUrl = null,
+                            isLoading = false,
+                            error = e.message
+                        )),
+                        isLoaded = true
+                    )
+                }
+            }
+        }
+    }
+
+    fun onPageSelected(page: Int) {
+        val item = _uiState.value.items.getOrNull(page) ?: return
+        if (item.isVideo && item.localFilePath == null && item.isLoading) {
+            downloadVideo(item.attachmentId, item.filename)
+        }
+    }
+
+    private fun downloadVideo(attId: String, filename: String) {
+        val item = _uiState.value.items.find { it.attachmentId == attId } ?: return
+        viewModelScope.launch {
+            try {
+                val localFile = withContext(Dispatchers.IO) {
+                    attachmentRepository.downloadOriginal(attId, filename, item.size) { progress ->
+                        _uiState.update { state ->
+                            state.copy(items = state.items.map { i ->
+                                if (i.attachmentId == attId) i.copy(downloadProgress = progress)
+                                else i
+                            })
+                        }
+                    }
+                }
+                _uiState.update { state ->
+                    state.copy(items = state.items.map { item ->
+                        if (item.attachmentId == attId) item.copy(
+                            localFilePath = localFile.absolutePath,
+                            isLoading = false
+                        ) else item
+                    })
+                }
+            } catch (e: Exception) {
+                _uiState.update { state ->
+                    state.copy(items = state.items.map { item ->
+                        if (item.attachmentId == attId) item.copy(
+                            error = e.message,
+                            isLoading = false
+                        ) else item
+                    })
+                }
             }
         }
     }

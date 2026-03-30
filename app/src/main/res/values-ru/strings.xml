@@ -29,6 +29,7 @@
     <string name="new_messages">Новые сообщения</string>
     <string name="loading_messages">Загрузка сообщений&#8230;</string>
     <string name="no_messages">Пока нет сообщений. Поздоровайтесь!</string>
+    <string name="upload_failed">Не удалось загрузить %s</string>
 
     <!-- Time -->
     <string name="just_now">сейчас</string>
@@ -41,6 +42,17 @@
     <!-- Media -->
     <string name="loading">Загрузка&#8230;</string>
     <string name="error_loading_media">Не удалось загрузить медиа</string>
+
+    <!-- Camera / Attachments -->
+    <string name="take_photo">Сделать фото</string>
+    <string name="record_video">Записать видео</string>
+    <string name="pick_from_gallery">Выбрать из галереи</string>
+    <string name="choose_file">Выбрать файл</string>
+    <string name="camera_permission_required">Требуется разрешение камеры</string>
+    <string name="switch_camera">Переключить камеру</string>
+    <string name="recording">Запись…</string>
+    <string name="retake">Переснять</string>
+    <string name="send_attachment">Отправить</string>
 
     <!-- Misc -->
     <string name="photo_attachment">Фото</string>

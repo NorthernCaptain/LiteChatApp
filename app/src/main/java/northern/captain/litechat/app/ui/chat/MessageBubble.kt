@@ -6,12 +6,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -19,6 +19,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.util.Patterns
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -29,7 +31,15 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -50,7 +60,9 @@ fun MessageBubble(
     currentUserId: Long,
     onReactionClick: (String, String) -> Unit,
     onLongPress: (Message, Offset) -> Unit,
-    onMediaClick: (String) -> Unit,
+    onMediaClick: (attachmentId: String, messageId: String) -> Unit,
+    onFileClick: (attachmentId: String, filename: String, mimeType: String) -> Unit,
+    downloadingAttachmentId: String? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -110,7 +122,7 @@ fun MessageBubble(
 
         Column(
             horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start,
-            modifier = Modifier.widthIn(min = 80.dp, max = 280.dp)
+            modifier = Modifier.widthIn(min = 80.dp, max = 310.dp)
         ) {
             // Sender name in group convos
             if (!isOwnMessage && isGroupConvo && isFirstInGroup) {
@@ -143,7 +155,10 @@ fun MessageBubble(
                     if (message.attachments.isNotEmpty()) {
                         AttachmentThumbnails(
                             attachments = message.attachments,
+                            messageId = message.id,
                             onMediaClick = onMediaClick,
+                            onFileClick = onFileClick,
+                            downloadingAttachmentId = downloadingAttachmentId,
                             onLongClick = { doLongPress() }
                         )
                     }
@@ -178,7 +193,7 @@ fun MessageBubble(
 
                     // Message text
                     if (!message.text.isNullOrBlank()) {
-                        Text(
+                        LinkableText(
                             text = message.text,
                             style = MaterialTheme.typography.bodyMedium,
                             color = textColor,
@@ -186,55 +201,48 @@ fun MessageBubble(
                         )
                     }
 
-                    // Timestamp + Reactions row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 6.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (message.reactions.isNotEmpty()) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.weight(1f, fill = false)
-                            ) {
-                                message.reactions.forEach { reaction ->
-                                    val hasReacted = currentUserId in reaction.userIds
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = if (hasReacted)
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                                        else
-                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                                        modifier = Modifier
-                                            .then(
-                                                if (hasReacted) Modifier.border(
-                                                    1.dp,
-                                                    MaterialTheme.colorScheme.primary,
-                                                    RoundedCornerShape(10.dp)
-                                                ) else Modifier
-                                            )
-                                            .clickable { onReactionClick(message.id, reaction.emoji) }
-                                    ) {
-                                        Text(
-                                            text = "${reaction.emoji} ${reaction.count}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    // Reactions
+                    if (message.reactions.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(start = 6.dp, end = 8.dp, top = 4.dp)
+                        ) {
+                            message.reactions.forEach { reaction ->
+                                val hasReacted = currentUserId in reaction.userIds
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (hasReacted)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                    else
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                    modifier = Modifier
+                                        .then(
+                                            if (hasReacted) Modifier.border(
+                                                1.dp,
+                                                MaterialTheme.colorScheme.primary,
+                                                RoundedCornerShape(10.dp)
+                                            ) else Modifier
                                         )
-                                    }
+                                        .clickable { onReactionClick(message.id, reaction.emoji) }
+                                ) {
+                                    Text(
+                                        text = "${reaction.emoji} ${reaction.count}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
                                 }
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
                         }
-                        Text(
-                            text = formatMessageTime(message.createdAt),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = textColor.copy(alpha = 0.5f)
-                        )
                     }
+                    // Timestamp
+                    Text(
+                        text = formatMessageTime(message.createdAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = textColor.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 4.dp)
+                    )
                 }
             }
         }
@@ -245,7 +253,10 @@ fun MessageBubble(
 @Composable
 private fun AttachmentThumbnails(
     attachments: List<Attachment>,
-    onMediaClick: (String) -> Unit,
+    messageId: String,
+    onMediaClick: (attachmentId: String, messageId: String) -> Unit,
+    onFileClick: (attachmentId: String, filename: String, mimeType: String) -> Unit,
+    downloadingAttachmentId: String?,
     onLongClick: () -> Unit
 ) {
     val imageAttachments = attachments.filter {
@@ -256,27 +267,35 @@ private fun AttachmentThumbnails(
         val att = imageAttachments.first()
         ThumbnailWithPlayIcon(
             attachment = att,
+            messageId = messageId,
             onMediaClick = onMediaClick,
             onLongClick = onLongClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 250.dp)
+                .heightIn(max = 306.dp)
                 .clip(RoundedCornerShape(14.dp))
         )
     } else if (imageAttachments.size > 1) {
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        val gridWidth = 306 // dp, available width inside padding
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.padding(2.dp)
         ) {
-            items(imageAttachments) { att ->
-                ThumbnailWithPlayIcon(
-                    attachment = att,
-                    onMediaClick = onMediaClick,
-                    onLongClick = onLongClick,
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                )
+            imageAttachments.chunked(3).forEach { row ->
+                val thumbSize = (gridWidth - (row.size - 1) * 4) / row.size
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    row.forEach { att ->
+                        ThumbnailWithPlayIcon(
+                            attachment = att,
+                            messageId = messageId,
+                            onMediaClick = onMediaClick,
+                            onLongClick = onLongClick,
+                            modifier = Modifier
+                                .size(thumbSize.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
             }
         }
     }
@@ -286,13 +305,16 @@ private fun AttachmentThumbnails(
         !it.mimeType.startsWith("image/") && !it.mimeType.startsWith("video/")
     }
     fileAttachments.forEach { att ->
+        val isDownloading = downloadingAttachmentId == att.id
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .padding(horizontal = 8.dp, vertical = 4.dp)
                 .combinedClickable(
-                    onClick = { onMediaClick(att.id) },
+                    onClick = {
+                        if (!isDownloading) onFileClick(att.id, att.originalFilename, att.mimeType)
+                    },
                     onLongClick = onLongClick
                 )
         ) {
@@ -300,13 +322,45 @@ private fun AttachmentThumbnails(
                 modifier = Modifier.padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = att.originalFilename,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
+                if (isDownloading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.AttachFile,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                val dotIndex = att.originalFilename.lastIndexOf('.')
+                if (dotIndex > 0) {
+                    val namePart = att.originalFilename.substring(0, dotIndex)
+                    val extPart = att.originalFilename.substring(dotIndex)
+                    Text(
+                        text = namePart,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Text(
+                        text = extPart,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1
+                    )
+                } else {
+                    Text(
+                        text = att.originalFilename,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = formatFileSize(att.size),
@@ -357,7 +411,8 @@ fun ReactionChips(
 @Composable
 private fun ThumbnailWithPlayIcon(
     attachment: Attachment,
-    onMediaClick: (String) -> Unit,
+    messageId: String,
+    onMediaClick: (attachmentId: String, messageId: String) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -368,7 +423,7 @@ private fun ThumbnailWithPlayIcon(
 
     Box(
         modifier = modifier.combinedClickable(
-            onClick = { onMediaClick(attachment.id) },
+            onClick = { onMediaClick(attachment.id, messageId) },
             onLongClick = onLongClick
         ),
         contentAlignment = Alignment.Center
@@ -395,6 +450,64 @@ private fun ThumbnailWithPlayIcon(
             }
         }
     }
+}
+
+private val linkPattern = Regex(
+    "(https?://[\\w\\-._~:/?#\\[\\]@!$&'()*+,;=%]+)|(mailto:[\\w.+-]+@[\\w.-]+)|(tel:[+\\d\\-().]+)"
+)
+
+@Composable
+private fun LinkableText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val linkColor = MaterialTheme.colorScheme.primary
+
+    val annotated = remember(text, color, linkColor) {
+        buildAnnotatedString {
+            var lastEnd = 0
+            linkPattern.findAll(text).forEach { match ->
+                // Text before the link
+                if (match.range.first > lastEnd) {
+                    withStyle(SpanStyle(color = color)) {
+                        append(text.substring(lastEnd, match.range.first))
+                    }
+                }
+                // The link
+                val url = match.value
+                pushStringAnnotation(tag = "URL", annotation = url)
+                withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
+                    append(url)
+                }
+                pop()
+                lastEnd = match.range.last + 1
+            }
+            // Remaining text
+            if (lastEnd < text.length) {
+                withStyle(SpanStyle(color = color)) {
+                    append(text.substring(lastEnd))
+                }
+            }
+        }
+    }
+
+    ClickableText(
+        text = annotated,
+        style = style,
+        modifier = modifier,
+        onClick = { offset ->
+            annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
+                        context.startActivity(intent)
+                    } catch (_: Exception) {}
+                }
+        }
+    )
 }
 
 private fun formatMessageTime(isoTime: String): String {

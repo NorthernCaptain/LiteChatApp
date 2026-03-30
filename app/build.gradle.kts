@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "northern.captain.litechat.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "northern.captain.litechat.app"
@@ -83,6 +83,13 @@ dependencies {
     implementation(libs.media3.ui)
     implementation(libs.media3.datasource.okhttp)
 
+    // CameraX
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
+    implementation(libs.camerax.video)
+
     // Lifecycle
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
@@ -92,6 +99,9 @@ dependencies {
 
     // Security
     implementation(libs.security.crypto)
+
+    // ExifInterface
+    implementation(libs.exifinterface)
 
     // Core
     implementation(libs.core.ktx)

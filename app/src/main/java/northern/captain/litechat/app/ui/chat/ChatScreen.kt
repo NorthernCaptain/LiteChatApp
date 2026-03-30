@@ -23,13 +23,26 @@ import northern.captain.litechat.app.domain.model.Message
 @Composable
 fun ChatScreen(
     onNavigateBack: () -> Unit,
-    onMediaClick: (String) -> Unit,
+    onMediaClick: (attachmentId: String, messageId: String) -> Unit,
+    onTakePhoto: () -> Unit = {},
+    onRecordVideo: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     var showReactionPicker by remember { mutableStateOf<Message?>(null) }
     var longPressOffset by remember { mutableStateOf(Offset.Zero) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Show upload error
+    val uploadError = uiState.uploadError
+    val uploadFailedMsg = stringResource(R.string.upload_failed, uploadError ?: "")
+    LaunchedEffect(uploadError) {
+        if (uploadError != null) {
+            snackbarHostState.showSnackbar(uploadFailedMsg)
+            viewModel.clearUploadError()
+        }
+    }
 
     // Auto-scroll to bottom when new messages arrive
     LaunchedEffect(uiState.messages.size) {
@@ -76,6 +89,15 @@ fun ChatScreen(
     }
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -102,9 +124,11 @@ fun ChatScreen(
                 isSending = uiState.isSending,
                 onInputChange = viewModel::onInputChange,
                 onSendClick = viewModel::onSendClick,
-                onAttachmentPicked = viewModel::onAttachmentPicked,
+                onAttachmentsPicked = viewModel::onAttachmentsPicked,
                 onRemoveAttachment = viewModel::onRemovePendingAttachment,
                 onCancelReply = viewModel::onCancelReply,
+                onTakePhoto = onTakePhoto,
+                onRecordVideo = onRecordVideo,
                 modifier = Modifier
                     .navigationBarsPadding()
                     .imePadding()
@@ -164,7 +188,9 @@ fun ChatScreen(
                             longPressOffset = offset
                             showReactionPicker = msg
                         },
-                        onMediaClick = onMediaClick
+                        onMediaClick = onMediaClick,
+                        onFileClick = viewModel::onOpenFile,
+                        downloadingAttachmentId = uiState.downloadingAttachmentId
                     )
                 }
 

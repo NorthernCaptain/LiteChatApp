@@ -44,7 +44,9 @@ data class ChatUiState(
     val pendingAttachments: List<PendingAttachment> = emptyList(),
     val isSending: Boolean = false,
     val currentUserId: Long = 0,
-    val isInitialLoading: Boolean = true
+    val isInitialLoading: Boolean = true,
+    val downloadingAttachmentId: String? = null,
+    val uploadError: String? = null
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -217,17 +219,93 @@ class ChatViewModel @Inject constructor(
                     })
                 }
             } catch (_: Exception) {
-                // Remove failed upload
                 _uiState.update { state ->
-                    state.copy(pendingAttachments = state.pendingAttachments.filter { it.localId != localId })
+                    state.copy(
+                        pendingAttachments = state.pendingAttachments.filter { it.localId != localId },
+                        uploadError = filename
+                    )
                 }
             }
         }
     }
 
+    fun onAttachmentsPicked(uris: List<Uri>) {
+        uris.forEach { onAttachmentPicked(it) }
+    }
+
+    fun onCameraFileCaptured(file: File, mimeType: String) {
+        val localId = java.util.UUID.randomUUID().toString()
+        val placeholder = PendingAttachment(
+            localId = localId,
+            filename = file.name,
+            uri = Uri.fromFile(file),
+            mimeType = mimeType,
+            isUploading = true
+        )
+        _uiState.update {
+            it.copy(pendingAttachments = it.pendingAttachments + placeholder)
+        }
+        viewModelScope.launch {
+            try {
+                val attachment = attachmentRepository.uploadAttachment(file, mimeType)
+                file.delete()
+                val thumbnailUrl = if (attachment.hasThumbnail) {
+                    "${northern.captain.litechat.app.config.ApiConfig.BASE_URL}/litechat/api/v1/attachments/${attachment.id}/thumbnail"
+                } else null
+                _uiState.update { state ->
+                    state.copy(pendingAttachments = state.pendingAttachments.map { p ->
+                        if (p.localId == localId) p.copy(
+                            isUploading = false,
+                            attachmentId = attachment.id.toIntOrNull(),
+                            hasThumbnail = attachment.hasThumbnail,
+                            thumbnailUrl = thumbnailUrl
+                        ) else p
+                    })
+                }
+            } catch (_: Exception) {
+                file.delete()
+                _uiState.update { state ->
+                    state.copy(
+                        pendingAttachments = state.pendingAttachments.filter { it.localId != localId },
+                        uploadError = file.name
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearUploadError() {
+        _uiState.update { it.copy(uploadError = null) }
+    }
+
     fun onRemovePendingAttachment(localId: String) {
         _uiState.update {
             it.copy(pendingAttachments = it.pendingAttachments.filter { a -> a.localId != localId })
+        }
+    }
+
+    fun onOpenFile(attachmentId: String, filename: String, mimeType: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(downloadingAttachmentId = attachmentId) }
+            try {
+                val file = attachmentRepository.downloadOriginal(attachmentId, filename)
+                _uiState.update { it.copy(downloadingAttachmentId = null) }
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                val viewIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mimeType)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = android.content.Intent.createChooser(viewIntent, filename).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(chooser)
+            } catch (_: Exception) {
+                _uiState.update { it.copy(downloadingAttachmentId = null) }
+            }
         }
     }
 

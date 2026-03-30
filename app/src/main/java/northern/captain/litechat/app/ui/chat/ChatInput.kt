@@ -2,6 +2,7 @@ package northern.captain.litechat.app.ui.chat
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -15,12 +16,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,15 +45,25 @@ fun ChatInput(
     isSending: Boolean,
     onInputChange: (String) -> Unit,
     onSendClick: () -> Unit,
-    onAttachmentPicked: (Uri) -> Unit,
+    onAttachmentsPicked: (List<Uri>) -> Unit,
     onRemoveAttachment: (String) -> Unit,
     onCancelReply: () -> Unit,
+    onTakePhoto: () -> Unit,
+    onRecordVideo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    val galleryPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) onAttachmentsPicked(uris)
+    }
+
     val filePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { onAttachmentPicked(it) }
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) onAttachmentsPicked(uris)
     }
 
     val anyUploading = pendingAttachments.any { it.isUploading }
@@ -119,7 +133,6 @@ fun ChatInput(
                     val hasServerThumbnail = attachment.thumbnailUrl != null
                     Box(modifier = Modifier.size(60.dp)) {
                         when {
-                            // Show server thumbnail (works for videos + images after upload)
                             hasServerThumbnail -> {
                                 AsyncImage(
                                     model = attachment.thumbnailUrl,
@@ -130,7 +143,6 @@ fun ChatInput(
                                         .clip(RoundedCornerShape(8.dp))
                                 )
                             }
-                            // Show local image preview while uploading
                             isImage -> {
                                 AsyncImage(
                                     model = attachment.uri,
@@ -141,7 +153,6 @@ fun ChatInput(
                                         .clip(RoundedCornerShape(8.dp))
                                 )
                             }
-                            // Non-image file placeholder
                             else -> {
                                 Surface(
                                     color = MaterialTheme.colorScheme.secondaryContainer,
@@ -170,7 +181,6 @@ fun ChatInput(
                                 }
                             }
                         }
-                        // Loading overlay
                         if (attachment.isUploading) {
                             Box(
                                 modifier = Modifier
@@ -186,7 +196,6 @@ fun ChatInput(
                                 )
                             }
                         }
-                        // Close button
                         Icon(
                             Icons.Default.Close,
                             contentDescription = null,
@@ -215,13 +224,54 @@ fun ChatInput(
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { filePicker.launch("*/*") }) {
-                    Icon(
-                        Icons.Default.AddCircle,
-                        contentDescription = stringResource(R.string.attachment),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
-                    )
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            Icons.Default.AddCircle,
+                            contentDescription = stringResource(R.string.attachment),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.take_photo)) },
+                            leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                onTakePhoto()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.record_video)) },
+                            leadingIcon = { Icon(Icons.Default.Videocam, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                onRecordVideo()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.pick_from_gallery)) },
+                            leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                galleryPicker.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.choose_file)) },
+                            leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                filePicker.launch(arrayOf("*/*"))
+                            }
+                        )
+                    }
                 }
 
                 TextField(

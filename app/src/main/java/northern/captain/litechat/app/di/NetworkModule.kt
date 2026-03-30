@@ -60,7 +60,7 @@ object NetworkModule {
             .authenticator(tokenAuthenticator)
             .addInterceptor(
                 HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BODY
+                    level = HttpLoggingInterceptor.Level.HEADERS
                 }
             )
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -98,7 +98,7 @@ object NetworkModule {
         val client = OkHttpClient.Builder()
             .addInterceptor(
                 HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BODY
+                    level = HttpLoggingInterceptor.Level.HEADERS
                 }
             )
             .connectTimeout(15, TimeUnit.SECONDS)

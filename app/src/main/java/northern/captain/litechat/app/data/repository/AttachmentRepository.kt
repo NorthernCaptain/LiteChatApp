@@ -35,13 +35,35 @@ class AttachmentRepository @Inject constructor(
     }
 
     suspend fun downloadOriginal(attachmentId: String, filename: String): File {
+        return downloadOriginal(attachmentId, filename, 0, null)
+    }
+
+    suspend fun downloadOriginal(
+        attachmentId: String,
+        filename: String,
+        knownSize: Long,
+        onProgress: ((Float) -> Unit)?
+    ): File {
         val targetFile = File(cacheDir, "${attachmentId}_$filename")
         if (targetFile.exists()) return targetFile
 
         val response = api.downloadAttachment(attachmentId)
+        val contentLength = response.contentLength()
+        val totalBytes = if (contentLength > 0) contentLength else knownSize
         targetFile.outputStream().use { output ->
             response.byteStream().use { input ->
-                input.copyTo(output)
+                if (onProgress != null && totalBytes > 0) {
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    var totalRead = 0L
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalRead += bytesRead
+                        onProgress((totalRead.toFloat() / totalBytes).coerceIn(0f, 1f))
+                    }
+                } else {
+                    input.copyTo(output)
+                }
             }
         }
         evictIfNeeded()
