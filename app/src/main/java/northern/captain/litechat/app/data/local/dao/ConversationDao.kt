@@ -14,11 +14,42 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations WHERE id = :id")
     suspend fun getById(id: String): ConversationEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOrUpdate(conversation: ConversationEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(conversation: ConversationEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOrUpdateAll(conversations: List<ConversationEntity>)
+    @Query("""
+        UPDATE conversations SET
+            type = :type,
+            name = :name,
+            updatedAt = :updatedAt,
+            lastMessageId = :lastMessageId,
+            lastMessageText = :lastMessageText,
+            lastMessageSenderId = :lastMessageSenderId,
+            lastMessageCreatedAt = :lastMessageCreatedAt
+        WHERE id = :id
+    """)
+    suspend fun updateConversation(
+        id: String, type: String, name: String?, updatedAt: String,
+        lastMessageId: String?, lastMessageText: String?,
+        lastMessageSenderId: Long?, lastMessageCreatedAt: String?
+    )
+
+    @Transaction
+    suspend fun upsert(conversation: ConversationEntity) {
+        val rowId = insertIgnore(conversation)
+        if (rowId == -1L) {
+            updateConversation(
+                conversation.id, conversation.type, conversation.name, conversation.updatedAt,
+                conversation.lastMessageId, conversation.lastMessageText,
+                conversation.lastMessageSenderId, conversation.lastMessageCreatedAt
+            )
+        }
+    }
+
+    @Transaction
+    suspend fun upsertAll(conversations: List<ConversationEntity>) {
+        conversations.forEach { upsert(it) }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMembers(members: List<ConversationMemberEntity>)

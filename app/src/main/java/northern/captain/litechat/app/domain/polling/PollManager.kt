@@ -1,5 +1,12 @@
 package northern.captain.litechat.app.domain.polling
 
+import android.content.Context
+import android.media.RingtoneManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import dagger.hilt.android.qualifiers.ApplicationContext
 import northern.captain.litechat.app.data.remote.AuthManager
 import northern.captain.litechat.app.data.remote.LiteChatApi
 import northern.captain.litechat.app.data.remote.dto.PollRequestDto
@@ -22,10 +29,14 @@ class PollManager @Inject constructor(
     private val messageRepository: MessageRepository,
     private val conversationRepository: ConversationRepository,
     private val authManager: AuthManager,
+    @ApplicationContext private val context: Context,
     @ApplicationScope private val scope: CoroutineScope
 ) {
     private var pollJob: Job? = null
     private var lastEventId: String = "0"
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+    private var isRunning = false
 
     private val _activeConversationId = MutableStateFlow<String?>(null)
     val activeConversationId: StateFlow<String?> = _activeConversationId
@@ -41,8 +52,22 @@ class PollManager @Inject constructor(
 
     fun start() {
         if (!authManager.isLoggedIn()) return
-        if (pollJob?.isActive == true) return
+        isRunning = true
         _isConnected.value = true
+        registerNetworkCallback()
+        startPollLoop()
+    }
+
+    fun stop() {
+        isRunning = false
+        unregisterNetworkCallback()
+        pollJob?.cancel()
+        pollJob = null
+        _isConnected.value = false
+    }
+
+    private fun startPollLoop() {
+        if (pollJob?.isActive == true) return
 
         pollJob = scope.launch {
             while (isActive) {
@@ -65,6 +90,7 @@ class PollManager @Inject constructor(
                                     // Message will appear via Room Flow
                                 } else {
                                     conversationRepository.incrementUnread(event.conversationId)
+                                    playNotificationSound()
                                 }
                             }
                             "reaction" -> {
@@ -87,10 +113,48 @@ class PollManager @Inject constructor(
         }
     }
 
-    fun stop() {
+    private fun restart() {
         pollJob?.cancel()
         pollJob = null
-        _isConnected.value = false
+        startPollLoop()
+    }
+
+    private fun registerNetworkCallback() {
+        if (networkCallback != null) return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                if (isRunning) {
+                    _isConnected.value = true
+                    restart()
+                }
+            }
+
+            override fun onLost(network: Network) {
+                _isConnected.value = false
+                if (isRunning) {
+                    restart()
+                }
+            }
+        }
+        networkCallback = callback
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        connectivityManager.registerNetworkCallback(request, callback)
+    }
+
+    private fun unregisterNetworkCallback() {
+        networkCallback?.let {
+            try { connectivityManager.unregisterNetworkCallback(it) } catch (_: Exception) {}
+        }
+        networkCallback = null
+    }
+
+    private fun playNotificationSound() {
+        try {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            RingtoneManager.getRingtone(context, uri)?.play()
+        } catch (_: Exception) {}
     }
 
     fun setActiveConversation(id: String?) {

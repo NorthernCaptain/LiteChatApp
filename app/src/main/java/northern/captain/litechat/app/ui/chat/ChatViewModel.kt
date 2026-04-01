@@ -19,6 +19,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import javax.inject.Inject
 
@@ -36,6 +37,8 @@ data class PendingAttachment(
 data class ChatUiState(
     val conversationName: String = "",
     val conversationType: String = "direct",
+    val avatarUserId: Long? = null,
+    val avatarFilename: String? = null,
     val messages: List<Message> = emptyList(),
     val isLoadingMore: Boolean = false,
     val hasMoreMessages: Boolean = true,
@@ -46,7 +49,8 @@ data class ChatUiState(
     val currentUserId: Long = 0,
     val isInitialLoading: Boolean = true,
     val downloadingAttachmentId: String? = null,
-    val uploadError: String? = null
+    val uploadError: String? = null,
+    val sendError: Boolean = false
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -66,7 +70,7 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChatUiState(currentUserId = authManager.getUserId()))
 
     // Sliding window: offset from the newest message (DESC order)
-    // offset=0 means showing the latest PAGE_SIZE messages
+    // offset=0 means showing the latest WINDOW_SIZE messages
     private val windowOffset = MutableStateFlow(0)
 
     companion object {
@@ -89,13 +93,21 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val convo = conversationRepository.getConversation(conversationId)
             if (convo != null) {
+                val otherUserId = convo.members.firstOrNull { it.userId != authManager.getUserId() }?.userId
+                val otherUser = otherUserId?.let { userRepository.getUser(it) }
                 val name = if (convo.type == "direct") {
-                    val otherUserId = convo.members.firstOrNull { it.userId != authManager.getUserId() }?.userId
-                    otherUserId?.let { userRepository.getUserName(it) } ?: convo.name ?: "Chat"
+                    otherUser?.name ?: convo.name ?: "Chat"
                 } else {
                     convo.name ?: "Group"
                 }
-                _uiState.update { it.copy(conversationName = name, conversationType = convo.type) }
+                _uiState.update {
+                    it.copy(
+                        conversationName = name,
+                        conversationType = convo.type,
+                        avatarUserId = otherUserId,
+                        avatarFilename = otherUser?.avatar
+                    )
+                }
             }
         }
 
@@ -116,8 +128,10 @@ class ChatViewModel @Inject constructor(
                 }
                 .collect { (offset, messages) ->
                     if (messages.isEmpty() && offset > 0) {
-                        // Scrolled past all messages — clamp back
-                        windowOffset.value = (offset - WINDOW_SIZE).coerceAtLeast(0)
+                        // Overshot past all messages — get the actual count and clamp
+                        val total = messageRepository.getMessageCount(conversationId)
+                        val maxOffset = (total - WINDOW_SIZE).coerceAtLeast(0)
+                        windowOffset.value = maxOffset
                     } else {
                         _uiState.update { it.copy(messages = messages) }
                     }
@@ -126,13 +140,14 @@ class ChatViewModel @Inject constructor(
     }
 
     private var lastWindowShift = 0L
+    private val SHIFT_SIZE = 30 // shift by 30, keeping 20 message overlap
 
     /** Called when user scrolls up near the oldest visible messages */
     fun loadOlderMessages() {
         val now = System.currentTimeMillis()
         if (now - lastWindowShift < 500) return // debounce
         lastWindowShift = now
-        windowOffset.value += WINDOW_SIZE
+        windowOffset.value += SHIFT_SIZE
     }
 
     /** Called when user scrolls down near the newest visible messages */
@@ -140,10 +155,15 @@ class ChatViewModel @Inject constructor(
         val now = System.currentTimeMillis()
         if (now - lastWindowShift < 500) return
         lastWindowShift = now
-        val newOffset = (windowOffset.value - WINDOW_SIZE).coerceAtLeast(0)
+        val newOffset = (windowOffset.value - SHIFT_SIZE).coerceAtLeast(0)
         if (newOffset != windowOffset.value) {
             windowOffset.value = newOffset
         }
+    }
+
+    fun jumpToLatest() {
+        windowOffset.value = 0
+        _scrollToBottom.tryEmit(Unit)
     }
 
     fun onInputChange(text: String) {
@@ -160,12 +180,14 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(isSending = true) }
         viewModelScope.launch {
             try {
-                messageRepository.sendMessage(
-                    conversationId = conversationId,
-                    text = text.ifEmpty { null },
-                    referenceMessageId = state.replyToMessage?.id,
-                    attachmentIds = attachmentIds.ifEmpty { null }
-                )
+                withTimeout(5000) {
+                    messageRepository.sendMessage(
+                        conversationId = conversationId,
+                        text = text.ifEmpty { null },
+                        referenceMessageId = state.replyToMessage?.id,
+                        attachmentIds = attachmentIds.ifEmpty { null }
+                    )
+                }
                 _uiState.update {
                     it.copy(
                         inputText = "",
@@ -176,7 +198,7 @@ class ChatViewModel @Inject constructor(
                 }
                 _scrollToBottom.tryEmit(Unit)
             } catch (_: Exception) {
-                _uiState.update { it.copy(isSending = false) }
+                _uiState.update { it.copy(isSending = false, sendError = true) }
             }
         }
     }
@@ -272,6 +294,10 @@ class ChatViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun clearSendError() {
+        _uiState.update { it.copy(sendError = false) }
     }
 
     fun clearUploadError() {

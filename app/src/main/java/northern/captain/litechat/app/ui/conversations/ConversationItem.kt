@@ -41,7 +41,7 @@ fun ConversationItem(
                 userId = avatarUserId,
                 name = displayName,
                 avatarFilename = avatarFilename,
-                size = 48.dp
+                size = 60.dp
             )
 
             Spacer(modifier = Modifier.width(12.dp))

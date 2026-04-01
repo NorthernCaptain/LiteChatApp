@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "373981864159",
+    "project_id": "litechat-1fa42",
+    "storage_bucket": "litechat-1fa42.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:373981864159:android:05a9e88ccbe843207d096a",
+        "android_client_info": {
+          "package_name": "northern.captain.litechat.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdIlRYG8DAeo0vvdpUDEBqpUMFdzsGWJQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

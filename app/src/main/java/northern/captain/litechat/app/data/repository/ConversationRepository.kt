@@ -34,7 +34,7 @@ class ConversationRepository @Inject constructor(
     suspend fun refreshConversations() {
         val response = api.getConversations()
         val entities = response.conversations.map { it.toEntity() }
-        conversationDao.insertOrUpdateAll(entities)
+        conversationDao.upsertAll(entities)
 
         val memberEntities = response.conversations.flatMap { dto ->
             dto.members.map { member ->
@@ -56,7 +56,7 @@ class ConversationRepository @Inject constructor(
             )
         )
         val entity = response.toEntity()
-        conversationDao.insertOrUpdate(entity)
+        conversationDao.upsert(entity)
         val memberEntities = response.members.map { member ->
             ConversationMemberEntity(
                 conversationId = response.id,

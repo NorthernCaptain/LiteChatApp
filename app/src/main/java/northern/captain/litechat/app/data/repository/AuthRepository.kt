@@ -1,11 +1,15 @@
 package northern.captain.litechat.app.data.repository
 
+import com.google.firebase.messaging.FirebaseMessaging
 import northern.captain.litechat.app.config.ApiConfig
 import northern.captain.litechat.app.data.local.LiteChatDatabase
 import northern.captain.litechat.app.data.remote.AuthApi
 import northern.captain.litechat.app.data.remote.AuthManager
 import northern.captain.litechat.app.data.remote.LiteChatApi
+import northern.captain.litechat.app.data.remote.dto.FcmTokenRequestDto
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,9 +39,23 @@ class AuthRepository @Inject constructor(
                 // /users/me failed but login succeeded — userId will be resolved later
             }
 
+            // Register FCM token with server
+            registerFcmToken()
+
             Result.success(authManager.getUserId())
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private fun registerFcmToken() {
+        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+            authManager.saveFcmToken(token)
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    liteChatApi.registerFcmToken(FcmTokenRequestDto(token))
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -52,6 +70,13 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun signOut() {
+        // Unregister FCM token from server
+        val fcmToken = authManager.getFcmToken()
+        if (fcmToken != null) {
+            try {
+                liteChatApi.unregisterFcmToken(FcmTokenRequestDto(fcmToken))
+            } catch (_: Exception) {}
+        }
         authManager.clear()
         database.userDao().deleteAll()
         database.conversationDao().deleteAll()

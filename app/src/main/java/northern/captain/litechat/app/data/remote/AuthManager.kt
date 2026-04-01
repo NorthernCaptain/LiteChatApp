@@ -13,6 +13,7 @@ class AuthManager @Inject constructor(
         private const val KEY_PASSWORD = "password"
         private const val KEY_TOKEN = "access_token"
         private const val KEY_USER_ID = "user_id"
+        private const val KEY_FCM_TOKEN = "fcm_token"
     }
 
     fun saveCredentials(email: String, password: String) {
@@ -37,6 +38,16 @@ class AuthManager @Inject constructor(
 
     fun hasSavedCredentials(): Boolean {
         return !getEmail().isNullOrBlank() && !getPassword().isNullOrBlank()
+    }
+
+    fun saveFcmToken(token: String) {
+        prefs.edit().putString(KEY_FCM_TOKEN, token).apply()
+    }
+
+    fun getFcmToken(): String? = prefs.getString(KEY_FCM_TOKEN, null)
+
+    fun clearFcmToken() {
+        prefs.edit().remove(KEY_FCM_TOKEN).apply()
     }
 
     fun isLoggedIn(): Boolean = !getToken().isNullOrBlank()

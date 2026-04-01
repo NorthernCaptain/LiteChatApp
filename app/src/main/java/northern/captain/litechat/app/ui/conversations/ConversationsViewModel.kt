@@ -1,5 +1,6 @@
 package northern.captain.litechat.app.ui.conversations
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import northern.captain.litechat.app.data.remote.AuthManager
@@ -10,12 +11,21 @@ import northern.captain.litechat.app.domain.model.Conversation
 import northern.captain.litechat.app.domain.model.User
 import northern.captain.litechat.app.domain.polling.PollManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import northern.captain.litechat.app.data.remote.LiteChatApi
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 import javax.inject.Inject
 
 data class ConversationsUiState(
     val currentUserName: String = "",
+    val currentUserAvatar: String? = null,
     val conversations: List<Conversation> = emptyList(),
     val allUsers: List<User> = emptyList(),
     val usersWithoutConvo: List<User> = emptyList(),
@@ -32,14 +42,16 @@ class ConversationsViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val authRepository: AuthRepository,
     private val authManager: AuthManager,
-    private val pollManager: PollManager
+    private val pollManager: PollManager,
+    private val api: LiteChatApi,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ConversationsUiState())
     val uiState: StateFlow<ConversationsUiState> = _uiState.asStateFlow()
     val isConnected: StateFlow<Boolean> = pollManager.isConnected
 
-    private val currentUserId: Long get() = authManager.getUserId()
+    val currentUserId: Long get() = authManager.getUserId()
 
     init {
         viewModelScope.launch {
@@ -55,7 +67,9 @@ class ConversationsViewModel @Inject constructor(
                 conversationRepository.getConversations(),
                 userRepository.getUsers()
             ) { conversations, users ->
-                val currentUserName = users.find { it.userId == currentUserId }?.name ?: ""
+                val currentUser = users.find { it.userId == currentUserId }
+                val currentUserName = currentUser?.name ?: ""
+                val currentUserAvatar = currentUser?.avatar
                 val directUserIds = conversations
                     .filter { it.type == "direct" }
                     .flatMap { convo -> convo.members.map { it.userId } }
@@ -69,6 +83,7 @@ class ConversationsViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         currentUserName = currentUserName,
+                        currentUserAvatar = currentUserAvatar,
                         conversations = conversations,
                         allUsers = users,
                         usersWithoutConvo = usersWithoutConvo
@@ -133,4 +148,32 @@ class ConversationsViewModel @Inject constructor(
         val otherMemberId = conversation.members.firstOrNull { it.userId != currentUserId }?.userId ?: return null
         return _uiState.value.allUsers.find { it.userId == otherMemberId }
     }
+
+    fun uploadAvatar(file: File) {
+        viewModelScope.launch {
+            try {
+                val requestBody = file.asRequestBody("image/jpeg".toMediaType())
+                val part = MultipartBody.Part.createFormData("file", file.name, requestBody)
+                val response = api.uploadAvatar(part)
+                file.delete()
+
+
+                userRepository.refreshUsers()
+            } catch (_: Exception) {
+                file.delete()
+            }
+        }
+    }
+
+    fun removeAvatar() {
+        viewModelScope.launch {
+            try {
+                api.removeAvatar()
+
+
+                userRepository.refreshUsers()
+            } catch (_: Exception) {}
+        }
+    }
+
 }

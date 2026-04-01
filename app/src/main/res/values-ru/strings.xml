@@ -30,6 +30,7 @@
     <string name="loading_messages">Загрузка сообщений&#8230;</string>
     <string name="no_messages">Пока нет сообщений. Поздоровайтесь!</string>
     <string name="upload_failed">Не удалось загрузить %s</string>
+    <string name="send_failed">Не удалось отправить сообщение</string>
 
     <!-- Time -->
     <string name="just_now">сейчас</string>
@@ -52,7 +53,17 @@
     <string name="switch_camera">Переключить камеру</string>
     <string name="recording">Запись…</string>
     <string name="retake">Переснять</string>
-    <string name="send_attachment">Отправить</string>
+    <string name="send_attachment">Принять</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_name">Сообщения чата</string>
+    <string name="notification_channel_description">Уведомления о новых сообщениях</string>
+
+    <!-- Avatar -->
+    <string name="change_avatar">Изменить аватар</string>
+    <string name="remove_avatar">Удалить аватар</string>
+    <string name="crop_avatar">Обрезать аватар</string>
+    <string name="confirm">Подтвердить</string>
 
     <!-- Misc -->
     <string name="photo_attachment">Фото</string>

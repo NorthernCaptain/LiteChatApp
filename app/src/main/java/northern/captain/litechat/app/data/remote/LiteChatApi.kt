@@ -16,6 +16,13 @@ interface LiteChatApi {
     @GET("litechat/api/v1/users/{userId}/avatar")
     suspend fun getUserAvatar(@Path("userId") userId: Long): ResponseBody
 
+    @Multipart
+    @POST("litechat/api/v1/users/me/avatar")
+    suspend fun uploadAvatar(@Part file: MultipartBody.Part): AvatarResponseDto
+
+    @POST("litechat/api/v1/users/me/avatar")
+    suspend fun removeAvatar(): AvatarResponseDto
+
     @POST("litechat/api/v1/conversations")
     suspend fun createConversation(@Body body: CreateConversationRequestDto): ConversationDto
 
@@ -62,4 +69,10 @@ interface LiteChatApi {
 
     @POST("litechat/api/v1/poll")
     suspend fun poll(@Body body: PollRequestDto): PollResponseDto
+
+    @POST("litechat/api/v1/users/me/fcmtoken")
+    suspend fun registerFcmToken(@Body body: FcmTokenRequestDto)
+
+    @HTTP(method = "DELETE", path = "litechat/api/v1/users/me/fcmtoken", hasBody = true)
+    suspend fun unregisterFcmToken(@Body body: FcmTokenRequestDto)
 }

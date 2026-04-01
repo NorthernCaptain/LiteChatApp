@@ -61,6 +61,7 @@ import java.util.concurrent.Executors
 @Composable
 fun CameraScreen(
     mode: String, // "photo" or "video"
+    defaultLensFacing: Int = CameraSelector.LENS_FACING_BACK,
     onResult: (File?) -> Unit,
     onNavigateBack: () -> Unit
 ) {
@@ -135,6 +136,7 @@ fun CameraScreen(
     } else {
         CameraViewfinder(
             isVideo = isVideo,
+            defaultLensFacing = defaultLensFacing,
             onCaptured = { file -> capturedFile = file },
             onNavigateBack = onNavigateBack
         )
@@ -144,13 +146,14 @@ fun CameraScreen(
 @Composable
 private fun CameraViewfinder(
     isVideo: Boolean,
+    defaultLensFacing: Int = CameraSelector.LENS_FACING_BACK,
     onCaptured: (File) -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
+    var lensFacing by remember { mutableIntStateOf(defaultLensFacing) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var activeRecording by remember { mutableStateOf<Recording?>(null) }

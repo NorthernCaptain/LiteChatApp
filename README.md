@@ -53,6 +53,13 @@ A native Android chat application built with Kotlin and Jetpack Compose. Connect
 - Lifecycle-aware polling (active on foreground, paused on background)
 - Unread message count tracking
 
+### Push Notifications (FCM)
+- Firebase Cloud Messaging for background message delivery
+- Server checks if user is active (polling) before sending FCM
+- Notification tap opens the relevant conversation directly
+- FCM token registered after login, unregistered on sign-out
+- Automatic token refresh handling
+
 ### Localization & Theming
 - English and Russian language support
 - Light/dark theme following system setting
@@ -70,6 +77,7 @@ A native Android chat application built with Kotlin and Jetpack Compose. Connect
 | Images | Coil (250MB disk cache) |
 | Video | Media3 ExoPlayer |
 | Camera | CameraX |
+| Push Notifications | Firebase Cloud Messaging |
 | Auth Storage | EncryptedSharedPreferences |
 | Navigation | Navigation Compose |
 | Async | Coroutines + Flow |

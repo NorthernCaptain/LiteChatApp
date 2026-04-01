@@ -6,9 +6,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import northern.captain.litechat.app.R
+import northern.captain.litechat.app.ui.components.AvatarImage
 import northern.captain.litechat.app.domain.model.Message
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,37 +45,45 @@ fun ChatScreen(
         }
     }
 
-    // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(uiState.messages.size) {
-        if (uiState.messages.isNotEmpty() && listState.firstVisibleItemIndex <= 2) {
-            listState.animateScrollToItem(0)
+    // Show send error
+    val sendError = uiState.sendError
+    val sendFailedMsg = stringResource(R.string.send_failed)
+    LaunchedEffect(sendError) {
+        if (sendError) {
+            snackbarHostState.showSnackbar(sendFailedMsg)
+            viewModel.clearSendError()
         }
     }
 
+    // When messages change and user is near bottom, keep them at bottom
+    val lastMessageId = uiState.messages.lastOrNull()?.id
+    LaunchedEffect(lastMessageId) {
+        if (lastMessageId != null && listState.firstVisibleItemIndex <= 3) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    // Force scroll to bottom after sending
     LaunchedEffect(Unit) {
         viewModel.scrollToBottom.collect {
-            listState.animateScrollToItem(0)
+            // Small delay to ensure Room has emitted the new message
+            kotlinx.coroutines.delay(200)
+            listState.scrollToItem(0)
         }
     }
 
     // Sliding window: load older when near top, load newer when near bottom
-    val nearTop by remember {
-        derivedStateOf {
+    LaunchedEffect(listState) {
+        snapshotFlow {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             val total = listState.layoutInfo.totalItemsCount
-            total > 0 && lastVisible >= total - 3
+            val nearTop = total > 0 && lastVisible >= total - 3
+            val nearBottom = listState.firstVisibleItemIndex <= 2
+            nearTop to nearBottom
+        }.collect { (nearTop, nearBottom) ->
+            if (nearTop) viewModel.loadOlderMessages()
+            if (nearBottom) viewModel.loadNewerMessages()
         }
-    }
-    val nearBottom by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex <= 2
-        }
-    }
-    LaunchedEffect(nearTop) {
-        if (nearTop) viewModel.loadOlderMessages()
-    }
-    LaunchedEffect(nearBottom) {
-        if (nearBottom) viewModel.loadNewerMessages()
     }
 
     // Reaction picker popup
@@ -101,10 +110,19 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = uiState.conversationName,
-                        style = MaterialTheme.typography.titleLarge
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AvatarImage(
+                            userId = uiState.avatarUserId,
+                            name = uiState.conversationName,
+                            avatarFilename = uiState.avatarFilename,
+                            size = 36.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = uiState.conversationName,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -159,13 +177,15 @@ fun ChatScreen(
             }
         } else {
             val messages = uiState.messages.reversed() // newest first for reverseLayout
+            val showScrollToBottom by remember {
+                derivedStateOf { listState.firstVisibleItemIndex > 5 }
+            }
 
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
                 state = listState,
                 reverseLayout = true,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 items(messages, key = { it.id }) { message ->
@@ -193,8 +213,25 @@ fun ChatScreen(
                         downloadingAttachmentId = uiState.downloadingAttachmentId
                     )
                 }
-
             }
+
+            // Scroll-to-bottom button
+            if (showScrollToBottom) {
+                SmallFloatingActionButton(
+                    onClick = { viewModel.jumpToLatest() },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 12.dp, bottom = 2.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ) {
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = null
+                    )
+                }
+            }
+            } // Box
         }
     }
 }

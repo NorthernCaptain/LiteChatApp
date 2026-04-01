@@ -49,6 +49,10 @@ class MessageRepository @Inject constructor(
         }
     }
 
+    suspend fun getMessageCount(conversationId: String): Int {
+        return messageDao.getMessageCount(conversationId)
+    }
+
     fun getMessagesFlow(conversationId: String, limit: Int = Int.MAX_VALUE): Flow<List<Message>> {
         return messageDao.getLatestMessagesFlow(conversationId, limit).map { entities ->
             if (entities.isEmpty()) return@map emptyList()

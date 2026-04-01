@@ -296,11 +296,18 @@ fun ChatInput(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                if (canSend) {
-                    IconButton(
-                        onClick = onSendClick,
-                        enabled = !isSending
+                if (isSending) {
+                    Box(
+                        modifier = Modifier.size(48.dp),
+                        contentAlignment = Alignment.Center
                     ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                } else if (canSend) {
+                    IconButton(onClick = onSendClick) {
                         Icon(
                             Icons.AutoMirrored.Filled.Send,
                             contentDescription = stringResource(R.string.send),

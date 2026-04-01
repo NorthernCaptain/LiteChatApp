@@ -10,6 +10,9 @@ interface UserDao {
     @Query("SELECT * FROM users ORDER BY name ASC")
     fun getAll(): Flow<List<UserEntity>>
 
+    @Query("SELECT * FROM users")
+    suspend fun getAllOnce(): List<UserEntity>
+
     @Query("SELECT * FROM users WHERE userId = :userId")
     suspend fun getById(userId: Long): UserEntity?
 

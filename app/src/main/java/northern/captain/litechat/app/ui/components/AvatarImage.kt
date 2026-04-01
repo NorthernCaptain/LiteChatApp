@@ -28,8 +28,8 @@ fun AvatarImage(
     modifier: Modifier = Modifier
 ) {
     if (userId != null && avatarFilename != null) {
-        val avatarUrl = "${ApiConfig.BASE_URL}/litechat/api/v1/users/$userId/avatar"
-        val showFallback = remember(userId) { mutableStateOf(false) }
+        val avatarUrl = "${ApiConfig.BASE_URL}/litechat/api/v1/users/$userId/avatar?f=$avatarFilename"
+        val showFallback = remember(avatarUrl) { mutableStateOf(false) }
 
         if (!showFallback.value) {
             AsyncImage(

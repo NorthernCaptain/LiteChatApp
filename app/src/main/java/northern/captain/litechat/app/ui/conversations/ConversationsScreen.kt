@@ -1,13 +1,25 @@
 package northern.captain.litechat.app.ui.conversations
 
+import android.Manifest
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.*
 import kotlinx.coroutines.launch
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -21,19 +33,32 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import northern.captain.litechat.app.R
+import northern.captain.litechat.app.data.remote.AuthManager
+import northern.captain.litechat.app.ui.components.AvatarImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationsScreen(
     onConversationClick: (String) -> Unit,
     onSignOut: () -> Unit,
+    onTakeAvatarPhoto: () -> Unit = {},
+    onCropAvatar: (filePath: String) -> Unit = {},
     viewModel: ConversationsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isConnected by viewModel.isConnected.collectAsState()
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var showAvatarMenu by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    val avatarGalleryPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onCropAvatar(uri.toString())
+        }
+    }
 
     LaunchedEffect(uiState.navigateToChat) {
         uiState.navigateToChat?.let { id ->
@@ -44,6 +69,16 @@ fun ConversationsScreen(
 
     LaunchedEffect(uiState.signedOut) {
         if (uiState.signedOut) onSignOut()
+    }
+
+    // Request notification permission on Android 13+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { /* granted or not — nothing to do */ }
+        LaunchedEffect(Unit) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     LifecycleResumeEffect(Unit) {
@@ -76,12 +111,77 @@ fun ConversationsScreen(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(modifier = Modifier.widthIn(max = 280.dp)) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-                )
+                Spacer(modifier = Modifier.height(24.dp))
+                // Profile section
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                ) {
+                    Box {
+                        Box(modifier = Modifier.clickable { showAvatarMenu = true }) {
+                            AvatarImage(
+                                userId = viewModel.currentUserId,
+                                name = uiState.currentUserName,
+                                avatarFilename = uiState.currentUserAvatar,
+                                size = 64.dp,
+
+                            )
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .size(20.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surface,
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    )
+                                    .padding(2.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showAvatarMenu,
+                            onDismissRequest = { showAvatarMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.take_photo)) },
+                                leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
+                                onClick = {
+                                    showAvatarMenu = false
+                                    scope.launch { drawerState.close() }
+                                    onTakeAvatarPhoto()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.pick_from_gallery)) },
+                                leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
+                                onClick = {
+                                    showAvatarMenu = false
+                                    scope.launch { drawerState.close() }
+                                    avatarGalleryPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                }
+                            )
+                            if (uiState.currentUserAvatar != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.remove_avatar)) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                    onClick = {
+                                        showAvatarMenu = false
+                                        viewModel.removeAvatar()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = uiState.currentUserName,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 NavigationDrawerItem(
                     icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
@@ -100,10 +200,20 @@ fun ConversationsScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = uiState.currentUserName.ifEmpty { stringResource(R.string.app_name) },
-                            style = MaterialTheme.typography.titleLarge
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            AvatarImage(
+                                userId = viewModel.currentUserId,
+                                name = uiState.currentUserName,
+                                avatarFilename = uiState.currentUserAvatar,
+                                size = 32.dp,
+
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = uiState.currentUserName.ifEmpty { stringResource(R.string.app_name) },
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {

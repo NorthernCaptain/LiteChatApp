@@ -30,7 +30,7 @@ fun UserItem(
             userId = user.userId,
             name = user.name,
             avatarFilename = user.avatar,
-            size = 40.dp
+            size = 50.dp
         )
 
         Spacer(modifier = Modifier.width(12.dp))

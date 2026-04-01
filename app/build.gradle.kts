@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -13,9 +14,9 @@ android {
     defaultConfig {
         applicationId = "northern.captain.litechat.app"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 2603291
-        versionName = "0.1.2"
+        targetSdk = 36
+        versionCode = 2603311
+        versionName = "0.2.4"
     }
 
     buildTypes {
@@ -99,6 +100,9 @@ dependencies {
 
     // Security
     implementation(libs.security.crypto)
+
+    // Firebase
+    implementation(libs.firebase.messaging)
 
     // ExifInterface
     implementation(libs.exifinterface)
