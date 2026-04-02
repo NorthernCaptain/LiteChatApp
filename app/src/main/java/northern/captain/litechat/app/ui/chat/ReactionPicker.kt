@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 
-private val REACTION_EMOJIS = listOf(
+private val REACTION_EMOJIS_ROW1 = listOf(
     "\uD83D\uDC4D", // thumbsup
     "\u2764\uFE0F", // heart
     "\uD83D\uDE02", // joy
@@ -28,7 +28,18 @@ private val REACTION_EMOJIS = listOf(
     "\uD83C\uDF89"  // party
 )
 
-private val PICKER_HEIGHT_DP = 52
+private val REACTION_EMOJIS_ROW2 = listOf(
+    "\uD83D\uDC4E", // thumbsdown
+    "\uD83D\uDE0D", // heart eyes
+    "\uD83E\uDD23", // rofl
+    "\uD83E\uDD14", // thinking
+    "\uD83D\uDE31", // scream
+    "\uD83D\uDE4C", // raised hands
+    "\uD83D\uDCAF", // 100
+    "\uD83D\uDE09"  // wink
+)
+
+private val PICKER_HEIGHT_DP = 112
 
 @Composable
 fun ReactionPicker(
@@ -50,7 +61,7 @@ fun ReactionPicker(
 
     // Center horizontally on screen
     val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
-    val pickerWidthPx = with(density) { 340.dp.toPx() }
+    val pickerWidthPx = with(density) { 400.dp.toPx() }
     val xOffset = ((screenWidthPx - pickerWidthPx) / 2).toInt().coerceAtLeast(0)
 
     Popup(
@@ -64,24 +75,28 @@ fun ReactionPicker(
             tonalElevation = 8.dp,
             shadowElevation = 8.dp
         ) {
-            Row(
+            Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                REACTION_EMOJIS.forEach { emoji ->
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clickable {
-                                onEmojiSelected(emoji)
-                                onDismiss()
+                listOf(REACTION_EMOJIS_ROW1, REACTION_EMOJIS_ROW2).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        row.forEach { emoji ->
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clickable {
+                                        onEmojiSelected(emoji)
+                                        onDismiss()
+                                    }
+                            ) {
+                                Text(
+                                    text = emoji,
+                                    style = MaterialTheme.typography.headlineSmall
+                                )
                             }
-                    ) {
-                        Text(
-                            text = emoji,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        }
                     }
                 }
             }

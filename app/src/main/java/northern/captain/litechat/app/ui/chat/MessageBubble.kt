@@ -1,10 +1,8 @@
 package northern.captain.litechat.app.ui.chat
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,7 +50,6 @@ import northern.captain.litechat.app.domain.model.ReactionGroup
 import northern.captain.litechat.app.ui.components.AvatarImage
 import northern.captain.litechat.app.ui.conversations.formatRelativeTime
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: Message,
@@ -99,6 +96,7 @@ fun MessageBubble(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .clickable { doLongPress() }
             .padding(
                 start = if (isOwnMessage) 48.dp else 8.dp,
                 end = if (isOwnMessage) 8.dp else 48.dp,
@@ -148,10 +146,7 @@ fun MessageBubble(
             ) {
                 Column(
                     modifier = Modifier
-                        .combinedClickable(
-                            onClick = {},
-                            onLongClick = { doLongPress() }
-                        )
+                        .clickable { doLongPress() }
                         .padding(2.dp)
                 ) {
                     // Attachment thumbnails
@@ -162,8 +157,7 @@ fun MessageBubble(
                             onMediaClick = onMediaClick,
                             onFileClick = onFileClick,
                             downloadingAttachmentId = downloadingAttachmentId,
-                            downloadProgress = downloadProgress,
-                            onLongClick = { doLongPress() }
+                            downloadProgress = downloadProgress
                         )
                     }
 
@@ -273,7 +267,6 @@ fun MessageBubble(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AttachmentThumbnails(
     attachments: List<Attachment>,
@@ -281,8 +274,7 @@ private fun AttachmentThumbnails(
     onMediaClick: (attachmentId: String, messageId: String) -> Unit,
     onFileClick: (attachmentId: String, filename: String, mimeType: String) -> Unit,
     downloadingAttachmentId: String?,
-    downloadProgress: Float,
-    onLongClick: () -> Unit
+    downloadProgress: Float
 ) {
     val imageAttachments = attachments.filter {
         it.mimeType.startsWith("image/") || it.mimeType.startsWith("video/")
@@ -294,7 +286,6 @@ private fun AttachmentThumbnails(
             attachment = att,
             messageId = messageId,
             onMediaClick = onMediaClick,
-            onLongClick = onLongClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 306.dp)
@@ -314,7 +305,6 @@ private fun AttachmentThumbnails(
                             attachment = att,
                             messageId = messageId,
                             onMediaClick = onMediaClick,
-                            onLongClick = onLongClick,
                             modifier = Modifier
                                 .size(thumbSize.dp)
                                 .clip(RoundedCornerShape(8.dp))
@@ -336,12 +326,9 @@ private fun AttachmentThumbnails(
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .padding(horizontal = 8.dp, vertical = 4.dp)
-                .combinedClickable(
-                    onClick = {
-                        if (!isDownloading) onFileClick(att.id, att.originalFilename, att.mimeType)
-                    },
-                    onLongClick = onLongClick
-                )
+                .clickable {
+                    if (!isDownloading) onFileClick(att.id, att.originalFilename, att.mimeType)
+                }
         ) {
             Row(
                 modifier = Modifier.padding(8.dp),
@@ -441,13 +428,11 @@ fun ReactionChips(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ThumbnailWithPlayIcon(
     attachment: Attachment,
     messageId: String,
     onMediaClick: (attachmentId: String, messageId: String) -> Unit,
-    onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val thumbnailUrl = if (attachment.hasThumbnail) {
@@ -456,10 +441,7 @@ private fun ThumbnailWithPlayIcon(
     val isVideo = attachment.mimeType.startsWith("video/")
 
     Box(
-        modifier = modifier.combinedClickable(
-            onClick = { onMediaClick(attachment.id, messageId) },
-            onLongClick = onLongClick
-        ),
+        modifier = modifier.clickable { onMediaClick(attachment.id, messageId) },
         contentAlignment = Alignment.Center
     ) {
         AsyncImage(
@@ -499,49 +481,56 @@ private fun LinkableText(
 ) {
     val context = LocalContext.current
     val linkColor = MaterialTheme.colorScheme.primary
+    val hasLinks = remember(text) { linkPattern.containsMatchIn(text) }
 
-    val annotated = remember(text, color, linkColor) {
-        buildAnnotatedString {
-            var lastEnd = 0
-            linkPattern.findAll(text).forEach { match ->
-                // Text before the link
-                if (match.range.first > lastEnd) {
+    if (!hasLinks) {
+        Text(
+            text = text,
+            style = style,
+            color = color,
+            modifier = modifier
+        )
+    } else {
+        val annotated = remember(text, color, linkColor) {
+            buildAnnotatedString {
+                var lastEnd = 0
+                linkPattern.findAll(text).forEach { match ->
+                    if (match.range.first > lastEnd) {
+                        withStyle(SpanStyle(color = color)) {
+                            append(text.substring(lastEnd, match.range.first))
+                        }
+                    }
+                    val url = match.value
+                    pushStringAnnotation(tag = "URL", annotation = url)
+                    withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
+                        append(url)
+                    }
+                    pop()
+                    lastEnd = match.range.last + 1
+                }
+                if (lastEnd < text.length) {
                     withStyle(SpanStyle(color = color)) {
-                        append(text.substring(lastEnd, match.range.first))
+                        append(text.substring(lastEnd))
                     }
                 }
-                // The link
-                val url = match.value
-                pushStringAnnotation(tag = "URL", annotation = url)
-                withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
-                    append(url)
-                }
-                pop()
-                lastEnd = match.range.last + 1
-            }
-            // Remaining text
-            if (lastEnd < text.length) {
-                withStyle(SpanStyle(color = color)) {
-                    append(text.substring(lastEnd))
-                }
             }
         }
-    }
 
-    ClickableText(
-        text = annotated,
-        style = style,
-        modifier = modifier,
-        onClick = { offset ->
-            annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                .firstOrNull()?.let { annotation ->
-                    try {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
-                        context.startActivity(intent)
-                    } catch (_: Exception) {}
-                }
-        }
-    )
+        ClickableText(
+            text = annotated,
+            style = style,
+            modifier = modifier,
+            onClick = { offset ->
+                annotated.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                    .firstOrNull()?.let { annotation ->
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                    }
+            }
+        )
+    }
 }
 
 private fun formatMessageTime(isoTime: String): String {
