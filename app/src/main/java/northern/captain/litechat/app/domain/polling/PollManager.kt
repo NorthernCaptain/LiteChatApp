@@ -47,6 +47,10 @@ class PollManager @Inject constructor(
     private val _newReactionEvent = MutableSharedFlow<String>(extraBufferCapacity = 50)
     val newReactionEvent: SharedFlow<String> = _newReactionEvent
 
+    data class TypingEvent(val conversationId: String, val userId: Long, val userName: String, val active: Boolean)
+    private val _typingEvent = MutableSharedFlow<TypingEvent>(extraBufferCapacity = 50)
+    val typingEvent: SharedFlow<TypingEvent> = _typingEvent
+
     private val _isConnected = MutableStateFlow(true)
     val isConnected: StateFlow<Boolean> = _isConnected
 
@@ -97,6 +101,13 @@ class PollManager @Inject constructor(
                                 val reaction = event.reaction ?: continue
                                 messageRepository.insertReactionFromPoll(reaction)
                                 _newReactionEvent.tryEmit(reaction.messageId)
+                            }
+                            "typing" -> {
+                                val meta = event.meta ?: continue
+                                val userId = (meta["userId"] as? Number)?.toLong() ?: continue
+                                val userName = meta["name"] as? String ?: continue
+                                val active = meta["active"] as? Boolean ?: true
+                                _typingEvent.tryEmit(TypingEvent(event.conversationId, userId, userName, active))
                             }
                         }
                         if (event.pendingId > lastEventId) {

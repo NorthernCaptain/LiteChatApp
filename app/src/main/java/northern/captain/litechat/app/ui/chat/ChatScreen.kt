@@ -1,5 +1,13 @@
 package northern.captain.litechat.app.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -135,22 +143,28 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            ChatInput(
-                inputText = uiState.inputText,
-                replyToMessage = uiState.replyToMessage,
-                pendingAttachments = uiState.pendingAttachments,
-                isSending = uiState.isSending,
-                onInputChange = viewModel::onInputChange,
-                onSendClick = viewModel::onSendClick,
-                onAttachmentsPicked = viewModel::onAttachmentsPicked,
-                onRemoveAttachment = viewModel::onRemovePendingAttachment,
-                onCancelReply = viewModel::onCancelReply,
-                onTakePhoto = onTakePhoto,
-                onRecordVideo = onRecordVideo,
+            Column(
                 modifier = Modifier
                     .navigationBarsPadding()
                     .imePadding()
-            )
+            ) {
+                // Typing indicator
+                TypingIndicator(typingUsers = uiState.typingUsers)
+
+                ChatInput(
+                    inputText = uiState.inputText,
+                    replyToMessage = uiState.replyToMessage,
+                    pendingAttachments = uiState.pendingAttachments,
+                    isSending = uiState.isSending,
+                    onInputChange = viewModel::onInputChange,
+                    onSendClick = viewModel::onSendClick,
+                    onAttachmentsPicked = viewModel::onAttachmentsPicked,
+                    onRemoveAttachment = viewModel::onRemovePendingAttachment,
+                    onCancelReply = viewModel::onCancelReply,
+                    onTakePhoto = onTakePhoto,
+                    onRecordVideo = onRecordVideo
+                )
+            }
         }
     ) { padding ->
         if (uiState.isInitialLoading) {
@@ -232,6 +246,58 @@ fun ChatScreen(
                 }
             }
             } // Box
+        }
+    }
+}
+
+@Composable
+private fun TypingIndicator(typingUsers: Map<Long, String>) {
+    AnimatedVisibility(visible = typingUsers.isNotEmpty()) {
+        Row(
+            modifier = Modifier
+                .padding(start = 16.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = typingUsers.values.joinToString(", ") + " ",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            WaveDots()
+        }
+    }
+}
+
+@Composable
+private fun WaveDots() {
+    val infiniteTransition = rememberInfiniteTransition(label = "typing")
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        repeat(3) { index ->
+            val offsetY by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = -6f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 800
+                        0f at 0
+                        -6f at 200
+                        0f at 400
+                        0f at 800
+                    },
+                    repeatMode = RepeatMode.Restart,
+                    initialStartOffset = StartOffset(index * 150)
+                ),
+                label = "dot$index"
+            )
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .offset(y = offsetY.dp)
+                    .background(
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    )
+            )
         }
     }
 }

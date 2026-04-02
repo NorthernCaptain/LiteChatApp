@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import northern.captain.litechat.app.data.remote.AuthManager
+import northern.captain.litechat.app.data.remote.LiteChatApi
 import northern.captain.litechat.app.data.repository.AttachmentRepository
 import northern.captain.litechat.app.data.repository.ConversationRepository
 import northern.captain.litechat.app.data.repository.MessageRepository
@@ -18,8 +19,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import northern.captain.litechat.app.data.remote.dto.TypingRequestDto
 import java.io.File
 import javax.inject.Inject
 
@@ -50,7 +53,8 @@ data class ChatUiState(
     val isInitialLoading: Boolean = true,
     val downloadingAttachmentId: String? = null,
     val uploadError: String? = null,
-    val sendError: Boolean = false
+    val sendError: Boolean = false,
+    val typingUsers: Map<Long, String> = emptyMap()
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -63,6 +67,7 @@ class ChatViewModel @Inject constructor(
     private val attachmentRepository: AttachmentRepository,
     private val pollManager: PollManager,
     private val authManager: AuthManager,
+    private val api: LiteChatApi,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -137,6 +142,41 @@ class ChatViewModel @Inject constructor(
                     }
                 }
         }
+
+        // Collect typing events for this conversation
+        viewModelScope.launch {
+            pollManager.typingEvent.collect { event ->
+                if (event.conversationId == conversationId) {
+                    if (event.active) {
+                        _uiState.update { it.copy(typingUsers = it.typingUsers + (event.userId to event.userName)) }
+                        scheduleTypingRemoval(event.userId)
+                    } else {
+                        _uiState.update { it.copy(typingUsers = it.typingUsers - event.userId) }
+                    }
+                }
+            }
+        }
+    }
+
+    // Typing indicator management
+    private var lastTypingSent = 0L
+    private var typingStopJob: Job? = null
+    private val typingRemovalJobs = mutableMapOf<Long, Job>()
+
+    private fun scheduleTypingRemoval(userId: Long) {
+        typingRemovalJobs[userId]?.cancel()
+        typingRemovalJobs[userId] = viewModelScope.launch {
+            kotlinx.coroutines.delay(6000)
+            _uiState.update { it.copy(typingUsers = it.typingUsers - userId) }
+        }
+    }
+
+    private fun sendTypingEvent(active: Boolean) {
+        viewModelScope.launch {
+            try {
+                api.sendTypingEvent(conversationId, TypingRequestDto(active))
+            } catch (_: Exception) {}
+        }
     }
 
     private var lastWindowShift = 0L
@@ -168,6 +208,29 @@ class ChatViewModel @Inject constructor(
 
     fun onInputChange(text: String) {
         _uiState.update { it.copy(inputText = text) }
+
+        // Send typing event (throttled to once per 5s)
+        if (text.isNotEmpty()) {
+            val now = System.currentTimeMillis()
+            if (now - lastTypingSent >= 5000) {
+                lastTypingSent = now
+                sendTypingEvent(true)
+            }
+            // Reset stop-typing timer
+            typingStopJob?.cancel()
+            typingStopJob = viewModelScope.launch {
+                kotlinx.coroutines.delay(5000)
+                sendTypingEvent(false)
+                lastTypingSent = 0
+            }
+        } else {
+            // Input cleared
+            typingStopJob?.cancel()
+            if (lastTypingSent > 0) {
+                sendTypingEvent(false)
+                lastTypingSent = 0
+            }
+        }
     }
 
     fun onSendClick() {
@@ -176,6 +239,13 @@ class ChatViewModel @Inject constructor(
         val attachmentIds = state.pendingAttachments.mapNotNull { it.attachmentId }
 
         if (text.isEmpty() && attachmentIds.isEmpty()) return
+
+        // Stop typing indicator
+        typingStopJob?.cancel()
+        if (lastTypingSent > 0) {
+            sendTypingEvent(false)
+            lastTypingSent = 0
+        }
 
         _uiState.update { it.copy(isSending = true) }
         viewModelScope.launch {
@@ -385,6 +455,10 @@ class ChatViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        typingStopJob?.cancel()
+        if (lastTypingSent > 0) {
+            sendTypingEvent(false)
+        }
         pollManager.setActiveConversation(null)
     }
 }

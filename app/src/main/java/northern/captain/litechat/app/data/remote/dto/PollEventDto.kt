@@ -8,5 +8,6 @@ data class PollEventDto(
     val type: String,
     val conversationId: String,
     val message: MessageDto? = null,
-    val reaction: ReactionResponseDto? = null
+    val reaction: ReactionResponseDto? = null,
+    val meta: Map<String, Any>? = null
 )

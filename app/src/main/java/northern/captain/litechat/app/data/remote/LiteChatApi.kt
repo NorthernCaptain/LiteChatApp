@@ -67,6 +67,12 @@ interface LiteChatApi {
         @Body body: ReactionRequestDto
     ): Any
 
+    @POST("litechat/api/v1/conversations/{id}/typing")
+    suspend fun sendTypingEvent(
+        @Path("id") conversationId: String,
+        @Body body: TypingRequestDto
+    )
+
     @POST("litechat/api/v1/poll")
     suspend fun poll(@Body body: PollRequestDto): PollResponseDto
 
