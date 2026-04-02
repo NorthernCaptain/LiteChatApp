@@ -54,6 +54,7 @@ data class ChatUiState(
     val currentUserId: Long = 0,
     val isInitialLoading: Boolean = true,
     val downloadingAttachmentId: String? = null,
+    val downloadProgress: Float = 0f,
     val uploadError: String? = null,
     val sendError: Boolean = false,
     val typingUsers: Map<Long, String> = emptyMap()
@@ -433,10 +434,22 @@ class ChatViewModel @Inject constructor(
 
     fun onOpenFile(attachmentId: String, filename: String, mimeType: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(downloadingAttachmentId = attachmentId) }
+            _uiState.update { it.copy(downloadingAttachmentId = attachmentId, downloadProgress = 0f) }
             try {
-                val file = attachmentRepository.downloadOriginal(attachmentId, filename)
-                _uiState.update { it.copy(downloadingAttachmentId = null) }
+                val att = messageRepository.getAttachment(attachmentId)
+                val knownSize = att?.size ?: 0L
+                var lastReported = 0f
+                val file = attachmentRepository.downloadOriginal(attachmentId, filename, knownSize) { progress ->
+                    if (progress - lastReported >= 0.01f || progress >= 1f) {
+                        lastReported = progress
+                        _uiState.update { state ->
+                            if (progress > state.downloadProgress) {
+                                state.copy(downloadProgress = progress)
+                            } else state
+                        }
+                    }
+                }
+                _uiState.update { it.copy(downloadingAttachmentId = null, downloadProgress = 0f) }
                 val uri = androidx.core.content.FileProvider.getUriForFile(
                     context,
                     "${context.packageName}.fileprovider",
@@ -451,7 +464,7 @@ class ChatViewModel @Inject constructor(
                 }
                 context.startActivity(chooser)
             } catch (_: Exception) {
-                _uiState.update { it.copy(downloadingAttachmentId = null) }
+                _uiState.update { it.copy(downloadingAttachmentId = null, downloadProgress = 0f) }
             }
         }
     }

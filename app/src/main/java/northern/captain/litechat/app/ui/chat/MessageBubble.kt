@@ -65,6 +65,7 @@ fun MessageBubble(
     onMediaClick: (attachmentId: String, messageId: String) -> Unit,
     onFileClick: (attachmentId: String, filename: String, mimeType: String) -> Unit,
     downloadingAttachmentId: String? = null,
+    downloadProgress: Float = 0f,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -161,6 +162,7 @@ fun MessageBubble(
                             onMediaClick = onMediaClick,
                             onFileClick = onFileClick,
                             downloadingAttachmentId = downloadingAttachmentId,
+                            downloadProgress = downloadProgress,
                             onLongClick = { doLongPress() }
                         )
                     }
@@ -279,6 +281,7 @@ private fun AttachmentThumbnails(
     onMediaClick: (attachmentId: String, messageId: String) -> Unit,
     onFileClick: (attachmentId: String, filename: String, mimeType: String) -> Unit,
     downloadingAttachmentId: String?,
+    downloadProgress: Float,
     onLongClick: () -> Unit
 ) {
     val imageAttachments = attachments.filter {
@@ -345,10 +348,19 @@ private fun AttachmentThumbnails(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isDownloading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
+                    if (downloadProgress > 0f) {
+                        CircularProgressIndicator(
+                            progress = { downloadProgress },
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
                 } else {
                     Icon(
                         Icons.Default.AttachFile,

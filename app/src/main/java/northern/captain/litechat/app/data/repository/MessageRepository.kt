@@ -53,6 +53,8 @@ class MessageRepository @Inject constructor(
         return messageDao.getMessageCount(conversationId)
     }
 
+    suspend fun getAttachment(attachmentId: String) = messageDao.getAttachmentById(attachmentId)
+
     fun getMessagesFlow(conversationId: String, limit: Int = Int.MAX_VALUE): Flow<List<Message>> {
         return messageDao.getLatestMessagesFlow(conversationId, limit).map { entities ->
             if (entities.isEmpty()) return@map emptyList()

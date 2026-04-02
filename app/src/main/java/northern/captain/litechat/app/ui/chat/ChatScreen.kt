@@ -226,7 +226,8 @@ fun ChatScreen(
                         },
                         onMediaClick = onMediaClick,
                         onFileClick = viewModel::onOpenFile,
-                        downloadingAttachmentId = uiState.downloadingAttachmentId
+                        downloadingAttachmentId = uiState.downloadingAttachmentId,
+                        downloadProgress = uiState.downloadProgress
                     )
                 }
             }
