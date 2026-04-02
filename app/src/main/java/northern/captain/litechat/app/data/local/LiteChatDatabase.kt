@@ -16,7 +16,7 @@ import northern.captain.litechat.app.data.local.entity.*
         AttachmentEntity::class,
         ReactionEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class LiteChatDatabase : RoomDatabase() {

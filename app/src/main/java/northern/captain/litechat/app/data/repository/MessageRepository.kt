@@ -175,7 +175,9 @@ class MessageRepository @Inject constructor(
         senderId = senderId,
         text = text,
         referenceMessageId = referenceMessageId,
-        createdAt = createdAt
+        createdAt = createdAt,
+        delivered = delivered,
+        readAt = readAt
     )
 
     private fun MessageDto.toDomain(senderName: String, senderAvatar: String? = null) = Message(
@@ -198,7 +200,9 @@ class MessageRepository @Inject constructor(
         reactions = reactions.map { grp ->
             ReactionGroup(emoji = grp.emoji, userIds = grp.userIds)
         },
-        createdAt = createdAt
+        createdAt = createdAt,
+        delivered = delivered,
+        readAt = readAt
     )
 
     private fun MessageEntity.toDomain(
@@ -228,6 +232,8 @@ class MessageRepository @Inject constructor(
         reactions = reactions.groupBy { it.emoji }.map { (emoji, reacts) ->
             ReactionGroup(emoji = emoji, userIds = reacts.map { it.userId })
         },
-        createdAt = createdAt
+        createdAt = createdAt,
+        delivered = delivered,
+        readAt = readAt
     )
 }

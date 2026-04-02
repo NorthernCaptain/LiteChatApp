@@ -10,6 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -235,14 +237,34 @@ fun MessageBubble(
                         }
                     }
                     // Timestamp
-                    Text(
-                        text = formatMessageTime(message.createdAt),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = textColor.copy(alpha = 0.5f),
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .align(Alignment.End)
                             .padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 4.dp)
-                    )
+                    ) {
+                        Text(
+                            text = formatMessageTime(message.createdAt),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor.copy(alpha = 0.5f)
+                        )
+                        if (isOwnMessage) {
+                            val tickIcon = when {
+                                message.readAt -> Icons.Default.DoneAll
+                                message.delivered -> Icons.Default.Done
+                                else -> null
+                            }
+                            if (tickIcon != null) {
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Icon(
+                                    tickIcon,
+                                    contentDescription = null,
+                                    tint = textColor.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

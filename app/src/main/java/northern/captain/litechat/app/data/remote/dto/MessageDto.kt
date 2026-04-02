@@ -11,5 +11,7 @@ data class MessageDto(
     val referenceMessageId: String? = null,
     val attachments: List<AttachmentDto> = emptyList(),
     val reactions: List<ReactionGroupDto> = emptyList(),
-    val createdAt: String
+    val createdAt: String,
+    val delivered: Boolean = false,
+    val readAt: Boolean = false
 )

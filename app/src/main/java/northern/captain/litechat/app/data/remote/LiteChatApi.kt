@@ -67,6 +67,12 @@ interface LiteChatApi {
         @Body body: ReactionRequestDto
     ): Any
 
+    @POST("litechat/api/v1/conversations/{id}/ack")
+    suspend fun acknowledgeDelivery(@Path("id") conversationId: String, @Body body: AckRequestDto)
+
+    @POST("litechat/api/v1/conversations/{id}/read")
+    suspend fun acknowledgeRead(@Path("id") conversationId: String, @Body body: AckRequestDto)
+
     @POST("litechat/api/v1/conversations/{id}/typing")
     suspend fun sendTypingEvent(
         @Path("id") conversationId: String,

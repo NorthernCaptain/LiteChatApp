@@ -14,5 +14,7 @@ data class MessageEntity(
     val senderId: Long,
     val text: String? = null,
     val referenceMessageId: String? = null,
-    val createdAt: String
+    val createdAt: String,
+    val delivered: Boolean = false,
+    val readAt: Boolean = false
 )

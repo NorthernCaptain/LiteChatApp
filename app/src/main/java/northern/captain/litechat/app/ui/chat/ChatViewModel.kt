@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import northern.captain.litechat.app.data.remote.dto.AckRequestDto
 import northern.captain.litechat.app.data.remote.dto.TypingRequestDto
 import java.io.File
 import javax.inject.Inject
@@ -116,13 +117,16 @@ class ChatViewModel @Inject constructor(
             }
         }
 
-        // Sync messages from API into Room
+        // Sync messages from API into Room, then send read receipt
         viewModelScope.launch {
             try {
                 messageRepository.syncAllMessages(conversationId)
             } catch (_: Exception) {}
             _uiState.update { it.copy(isInitialLoading = false) }
+            sendReadReceipt()
         }
+
+        var lastReadReceiptId: String? = null
 
         // Observe sliding window of messages from Room
         viewModelScope.launch {
@@ -139,6 +143,12 @@ class ChatViewModel @Inject constructor(
                         windowOffset.value = maxOffset
                     } else {
                         _uiState.update { it.copy(messages = messages) }
+                        // Send read receipt only when latest message changes
+                        val latestId = messages.lastOrNull()?.id
+                        if (offset == 0 && latestId != null && latestId != lastReadReceiptId) {
+                            lastReadReceiptId = latestId
+                            sendReadReceipt()
+                        }
                     }
                 }
         }
@@ -175,6 +185,15 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 api.sendTypingEvent(conversationId, TypingRequestDto(active))
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun sendReadReceipt() {
+        viewModelScope.launch {
+            try {
+                val latestId = messageRepository.getLatestCachedMessageId(conversationId) ?: return@launch
+                api.acknowledgeRead(conversationId, AckRequestDto(latestId))
             } catch (_: Exception) {}
         }
     }

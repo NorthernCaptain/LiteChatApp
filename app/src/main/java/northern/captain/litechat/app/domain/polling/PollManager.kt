@@ -9,6 +9,8 @@ import android.net.NetworkRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
 import northern.captain.litechat.app.data.remote.AuthManager
 import northern.captain.litechat.app.data.remote.LiteChatApi
+import northern.captain.litechat.app.data.local.dao.MessageDao
+import northern.captain.litechat.app.data.remote.dto.AckRequestDto
 import northern.captain.litechat.app.data.remote.dto.PollRequestDto
 import northern.captain.litechat.app.data.repository.ConversationRepository
 import northern.captain.litechat.app.data.repository.MessageRepository
@@ -26,8 +28,10 @@ import javax.inject.Singleton
 @Singleton
 class PollManager @Inject constructor(
     @LongPollApi private val api: LiteChatApi,
+    private val regularApi: LiteChatApi,
     private val messageRepository: MessageRepository,
     private val conversationRepository: ConversationRepository,
+    private val messageDao: MessageDao,
     private val authManager: AuthManager,
     @ApplicationContext private val context: Context,
     @ApplicationScope private val scope: CoroutineScope
@@ -96,6 +100,10 @@ class PollManager @Inject constructor(
                                     conversationRepository.incrementUnread(event.conversationId)
                                     playNotificationSound()
                                 }
+                                // Send delivery ack (fire-and-forget)
+                                scope.launch {
+                                    try { regularApi.acknowledgeDelivery(event.conversationId, AckRequestDto(msg.id)) } catch (_: Exception) {}
+                                }
                             }
                             "reaction" -> {
                                 val reaction = event.reaction ?: continue
@@ -108,6 +116,16 @@ class PollManager @Inject constructor(
                                 val userName = meta["name"] as? String ?: continue
                                 val active = meta["active"] as? Boolean ?: true
                                 _typingEvent.tryEmit(TypingEvent(event.conversationId, userId, userName, active))
+                            }
+                            "delivery" -> {
+                                val meta = event.meta ?: continue
+                                val messageId = meta["messageId"] as? String ?: continue
+                                messageDao.markDelivered(event.conversationId, messageId)
+                            }
+                            "read" -> {
+                                val meta = event.meta ?: continue
+                                val messageId = meta["messageId"] as? String ?: continue
+                                messageDao.markRead(event.conversationId, messageId)
                             }
                         }
                         if (event.pendingId > lastEventId) {

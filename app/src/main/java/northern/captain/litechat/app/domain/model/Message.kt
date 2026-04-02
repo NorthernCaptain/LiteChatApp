@@ -10,5 +10,7 @@ data class Message(
     val referenceMessageId: String? = null,
     val attachments: List<Attachment> = emptyList(),
     val reactions: List<ReactionGroup> = emptyList(),
-    val createdAt: String
+    val createdAt: String,
+    val delivered: Boolean = false,
+    val readAt: Boolean = false
 )
