@@ -167,7 +167,7 @@ fun ChatInput(
                                         Icon(
                                             Icons.Default.AttachFile,
                                             contentDescription = null,
-                                            modifier = Modifier.size(20.dp),
+                                            modifier = Modifier.size(28.dp),
                                             tint = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
                                         Text(
@@ -189,11 +189,21 @@ fun ChatInput(
                                     .background(Color.Black.copy(alpha = 0.4f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
+                                if (attachment.uploadProgress > 0f) {
+                                    CircularProgressIndicator(
+                                        progress = { attachment.uploadProgress },
+                                        modifier = Modifier.size(28.dp),
+                                        color = Color.White,
+                                        trackColor = Color.White.copy(alpha = 0.3f),
+                                        strokeWidth = 3.dp
+                                    )
+                                } else {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(28.dp),
+                                        color = Color.White,
+                                        strokeWidth = 3.dp
+                                    )
+                                }
                             }
                         }
                         Icon(

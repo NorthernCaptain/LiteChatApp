@@ -33,6 +33,7 @@ data class PendingAttachment(
     val uri: Uri,
     val mimeType: String,
     val isUploading: Boolean = true,
+    val uploadProgress: Float = 0f,
     val attachmentId: Int? = null,  // set after upload
     val hasThumbnail: Boolean = false,
     val thumbnailUrl: String? = null // set after upload if server generated thumbnail
@@ -79,9 +80,6 @@ class ChatViewModel @Inject constructor(
     // offset=0 means showing the latest WINDOW_SIZE messages
     private val windowOffset = MutableStateFlow(0)
 
-    companion object {
-        const val WINDOW_SIZE = 50
-    }
 
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -292,9 +290,21 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    companion object {
+        const val WINDOW_SIZE = 50
+        const val MAX_UPLOAD_SIZE = 150L * 1024 * 1024 // 150MB
+    }
+
     fun onAttachmentPicked(uri: Uri) {
         val localId = java.util.UUID.randomUUID().toString()
         val (filename, mimeType) = getFileInfo(uri)
+
+        // Check file size before uploading
+        val fileSize = getFileSize(uri)
+        if (fileSize > MAX_UPLOAD_SIZE) {
+            _uiState.update { it.copy(uploadError = "too_large") }
+            return
+        }
 
         // Show placeholder immediately
         val placeholder = PendingAttachment(
@@ -312,7 +322,17 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val tempFile = copyUriToTempFile(uri, filename)
-                val attachment = attachmentRepository.uploadAttachment(tempFile, mimeType)
+                var lastReported = 0f
+                val attachment = attachmentRepository.uploadAttachment(tempFile, mimeType) { progress ->
+                    if (progress - lastReported >= 0.01f || progress >= 1f) {
+                        lastReported = progress
+                        _uiState.update { state ->
+                            state.copy(pendingAttachments = state.pendingAttachments.map { p ->
+                                if (p.localId == localId && progress > p.uploadProgress) p.copy(uploadProgress = progress) else p
+                            })
+                        }
+                    }
+                }
                 tempFile.delete()
 
                 val thumbnailUrl = if (attachment.hasThumbnail) {
@@ -323,6 +343,7 @@ class ChatViewModel @Inject constructor(
                     state.copy(pendingAttachments = state.pendingAttachments.map { p ->
                         if (p.localId == localId) p.copy(
                             isUploading = false,
+                            uploadProgress = 1f,
                             attachmentId = attachment.id.toIntOrNull(),
                             hasThumbnail = attachment.hasThumbnail,
                             thumbnailUrl = thumbnailUrl
@@ -358,7 +379,17 @@ class ChatViewModel @Inject constructor(
         }
         viewModelScope.launch {
             try {
-                val attachment = attachmentRepository.uploadAttachment(file, mimeType)
+                var lastReported = 0f
+                val attachment = attachmentRepository.uploadAttachment(file, mimeType) { progress ->
+                    if (progress - lastReported >= 0.01f || progress >= 1f) {
+                        lastReported = progress
+                        _uiState.update { state ->
+                            state.copy(pendingAttachments = state.pendingAttachments.map { p ->
+                                if (p.localId == localId && progress > p.uploadProgress) p.copy(uploadProgress = progress) else p
+                            })
+                        }
+                    }
+                }
                 file.delete()
                 val thumbnailUrl = if (attachment.hasThumbnail) {
                     "${northern.captain.litechat.app.config.ApiConfig.BASE_URL}/litechat/api/v1/attachments/${attachment.id}/thumbnail"
@@ -367,6 +398,7 @@ class ChatViewModel @Inject constructor(
                     state.copy(pendingAttachments = state.pendingAttachments.map { p ->
                         if (p.localId == localId) p.copy(
                             isUploading = false,
+                            uploadProgress = 1f,
                             attachmentId = attachment.id.toIntOrNull(),
                             hasThumbnail = attachment.hasThumbnail,
                             thumbnailUrl = thumbnailUrl
@@ -447,6 +479,16 @@ class ChatViewModel @Inject constructor(
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    private fun getFileSize(uri: Uri): Long {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (cursor.moveToFirst() && sizeIndex >= 0) {
+                return cursor.getLong(sizeIndex)
+            }
+        }
+        return 0L
     }
 
     private fun getFileInfo(uri: Uri): Pair<String, String> {

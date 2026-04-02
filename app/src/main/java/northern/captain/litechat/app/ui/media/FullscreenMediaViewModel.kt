@@ -117,13 +117,18 @@ class FullscreenMediaViewModel @Inject constructor(
         val item = _uiState.value.items.find { it.attachmentId == attId } ?: return
         viewModelScope.launch {
             try {
+                var lastReportedProgress = 0f
                 val localFile = withContext(Dispatchers.IO) {
                     attachmentRepository.downloadOriginal(attId, filename, item.size) { progress ->
-                        _uiState.update { state ->
-                            state.copy(items = state.items.map { i ->
-                                if (i.attachmentId == attId) i.copy(downloadProgress = progress)
-                                else i
-                            })
+                        if (progress - lastReportedProgress >= 0.01f || progress >= 1f) {
+                            lastReportedProgress = progress
+                            _uiState.update { state ->
+                                state.copy(items = state.items.map { i ->
+                                    if (i.attachmentId == attId && progress > i.downloadProgress) {
+                                        i.copy(downloadProgress = progress)
+                                    } else i
+                                })
+                            }
                         }
                     }
                 }

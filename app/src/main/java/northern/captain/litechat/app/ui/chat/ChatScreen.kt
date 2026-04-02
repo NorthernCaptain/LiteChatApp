@@ -46,9 +46,11 @@ fun ChatScreen(
     // Show upload error
     val uploadError = uiState.uploadError
     val uploadFailedMsg = stringResource(R.string.upload_failed, uploadError ?: "")
+    val fileTooLargeMsg = stringResource(R.string.file_too_large)
     LaunchedEffect(uploadError) {
         if (uploadError != null) {
-            snackbarHostState.showSnackbar(uploadFailedMsg)
+            val msg = if (uploadError == "too_large") fileTooLargeMsg else uploadFailedMsg
+            snackbarHostState.showSnackbar(msg)
             viewModel.clearUploadError()
         }
     }

@@ -4,9 +4,12 @@ import android.content.Context
 import northern.captain.litechat.app.data.remote.LiteChatApi
 import northern.captain.litechat.app.domain.model.Attachment
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
+import okio.BufferedSink
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,7 +25,16 @@ class AttachmentRepository @Inject constructor(
     private val maxCacheSize = 500L * 1024 * 1024 // 500MB
 
     suspend fun uploadAttachment(file: File, mimeType: String): Attachment {
-        val requestBody = file.asRequestBody(mimeType.toMediaType())
+        return uploadAttachment(file, mimeType, null)
+    }
+
+    suspend fun uploadAttachment(file: File, mimeType: String, onProgress: ((Float) -> Unit)?): Attachment {
+        val mediaType = mimeType.toMediaType()
+        val requestBody = if (onProgress != null) {
+            ProgressRequestBody(file, mediaType, onProgress)
+        } else {
+            file.asRequestBody(mediaType)
+        }
         val part = MultipartBody.Part.createFormData("file", file.name, requestBody)
         val response = api.uploadAttachment(part)
         return Attachment(
@@ -32,6 +44,29 @@ class AttachmentRepository @Inject constructor(
             size = response.size,
             hasThumbnail = response.hasThumbnail
         )
+    }
+
+    private class ProgressRequestBody(
+        private val file: File,
+        private val mediaType: MediaType,
+        private val onProgress: (Float) -> Unit
+    ) : RequestBody() {
+        override fun contentType() = mediaType
+        override fun contentLength() = file.length()
+
+        override fun writeTo(sink: BufferedSink) {
+            val totalBytes = file.length()
+            var uploaded = 0L
+            val buffer = ByteArray(8192)
+            file.inputStream().use { input ->
+                var read: Int
+                while (input.read(buffer).also { read = it } != -1) {
+                    sink.write(buffer, 0, read)
+                    uploaded += read
+                    onProgress((uploaded.toFloat() / totalBytes).coerceIn(0f, 1f))
+                }
+            }
+        }
     }
 
     suspend fun downloadOriginal(attachmentId: String, filename: String): File {

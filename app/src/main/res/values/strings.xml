@@ -30,6 +30,7 @@
     <string name="loading_messages">Loading messages&#8230;</string>
     <string name="no_messages">No messages yet. Say hello!</string>
     <string name="upload_failed">Failed to upload %s</string>
+    <string name="file_too_large">File is too large. Maximum size is 150 MB</string>
     <string name="send_failed">Failed to send message</string>
 
     <!-- Time -->

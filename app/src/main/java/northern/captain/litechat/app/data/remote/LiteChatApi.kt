@@ -49,6 +49,7 @@ interface LiteChatApi {
     @POST("litechat/api/v1/attachments/upload")
     suspend fun uploadAttachment(@Part file: MultipartBody.Part): AttachmentDto
 
+    @Streaming
     @GET("litechat/api/v1/attachments/{id}")
     suspend fun downloadAttachment(@Path("id") id: String): ResponseBody
 
