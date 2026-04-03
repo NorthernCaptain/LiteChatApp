@@ -31,6 +31,10 @@
     <string name="no_messages">Пока нет сообщений. Поздоровайтесь!</string>
     <string name="upload_failed">Не удалось загрузить %s</string>
     <string name="file_too_large">Файл слишком большой. Максимальный размер 150 МБ</string>
+    <string name="reply">Ответить</string>
+    <string name="save">Сохранить</string>
+    <string name="saved_to_gallery">Сохранено в галерею</string>
+    <string name="saved_to_downloads">Сохранено в Загрузки</string>
     <string name="send_failed">Не удалось отправить сообщение</string>
 
     <!-- Time -->

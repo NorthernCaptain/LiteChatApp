@@ -74,6 +74,9 @@ interface MessageDao {
     @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId")
     suspend fun getMessageCount(conversationId: String): Int
 
+    @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId AND CAST(id AS INTEGER) > CAST(:messageId AS INTEGER)")
+    suspend fun getMessageOffsetFromNewest(conversationId: String, messageId: String): Int
+
     @Query("UPDATE messages SET delivered = 1 WHERE conversationId = :conversationId AND CAST(id AS INTEGER) <= CAST(:upToMessageId AS INTEGER) AND delivered = 0")
     suspend fun markDelivered(conversationId: String, upToMessageId: String)
 

@@ -38,15 +38,50 @@ class MessageRepository @Inject constructor(
         val attachmentsByMsg = attachments.groupBy { it.messageId }
         val reactionsByMsg = reactions.groupBy { it.messageId }
 
+        // Build a lookup for referenced messages
+        val refIds = sorted.mapNotNull { it.referenceMessageId }.distinct()
+        val entityMap = sorted.associateBy { it.id }
+        val refMessages = refIds.mapNotNull { refId ->
+            entityMap[refId] ?: messageDao.getById(refId)
+        }.associateBy { it.id }
+
+        // Batch user lookups
+        val allUserIds = (sorted.map { it.senderId } + refMessages.values.map { it.senderId }).distinct()
+        val usersMap = allUserIds.mapNotNull { userDao.getById(it) }.associateBy { it.userId }
+
+        // Look up attachments for referenced messages (for thumbnail in reply preview)
+        val refMsgIds = refMessages.keys.toList()
+        val refAttachments = if (refMsgIds.isNotEmpty()) {
+            messageDao.getAttachmentsForMessages(refMsgIds).groupBy { it.messageId }
+        } else emptyMap()
+
         return sorted.map { entity ->
-            val sender = userDao.getById(entity.senderId)
+            val sender = usersMap[entity.senderId]
+            val refMsg = entity.referenceMessageId?.let { refMessages[it] }
+            val refSender = refMsg?.let { usersMap[it.senderId] }
+            val refAtts = refMsg?.let { refAttachments[it.id] } ?: emptyList()
+            val refMediaAtt = refAtts.firstOrNull { it.hasThumbnail }
+            val refThumbnailUrl = refMediaAtt?.let {
+                "${northern.captain.litechat.app.config.ApiConfig.BASE_URL}/litechat/api/v1/attachments/${it.id}/thumbnail"
+            }
+            val refFileAtt = refAtts.firstOrNull { a ->
+                !a.mimeType.startsWith("image/") && !a.mimeType.startsWith("video/")
+            }
             entity.toDomain(
                 senderName = sender?.name ?: "Unknown",
                 senderAvatar = sender?.avatar,
                 attachments = attachmentsByMsg[entity.id] ?: emptyList(),
-                reactions = reactionsByMsg[entity.id] ?: emptyList()
+                reactions = reactionsByMsg[entity.id] ?: emptyList(),
+                referenceMessageSenderName = refSender?.name,
+                referenceMessageText = refMsg?.text,
+                referenceMessageThumbnailUrl = refThumbnailUrl,
+                referenceMessageFileName = refFileAtt?.originalFilename
             )
         }
+    }
+
+    suspend fun getMessageOffsetFromNewest(conversationId: String, messageId: String): Int {
+        return messageDao.getMessageOffsetFromNewest(conversationId, messageId)
     }
 
     suspend fun getMessageCount(conversationId: String): Int {
@@ -211,7 +246,11 @@ class MessageRepository @Inject constructor(
         senderName: String,
         senderAvatar: String?,
         attachments: List<AttachmentEntity>,
-        reactions: List<ReactionEntity>
+        reactions: List<ReactionEntity>,
+        referenceMessageSenderName: String? = null,
+        referenceMessageText: String? = null,
+        referenceMessageThumbnailUrl: String? = null,
+        referenceMessageFileName: String? = null
     ) = Message(
         id = id,
         conversationId = conversationId,
@@ -220,6 +259,10 @@ class MessageRepository @Inject constructor(
         senderAvatar = senderAvatar,
         text = text,
         referenceMessageId = referenceMessageId,
+        referenceMessageSenderName = referenceMessageSenderName,
+        referenceMessageText = referenceMessageText,
+        referenceMessageThumbnailUrl = referenceMessageThumbnailUrl,
+        referenceMessageFileName = referenceMessageFileName,
         attachments = attachments.map { att ->
             Attachment(
                 id = att.id,

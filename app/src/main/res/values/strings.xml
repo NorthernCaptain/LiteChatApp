@@ -31,6 +31,10 @@
     <string name="no_messages">No messages yet. Say hello!</string>
     <string name="upload_failed">Failed to upload %s</string>
     <string name="file_too_large">File is too large. Maximum size is 150 MB</string>
+    <string name="reply">Reply</string>
+    <string name="save">Save</string>
+    <string name="saved_to_gallery">Saved to gallery</string>
+    <string name="saved_to_downloads">Saved to Downloads</string>
     <string name="send_failed">Failed to send message</string>
 
     <!-- Time -->

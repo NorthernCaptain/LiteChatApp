@@ -3,6 +3,11 @@ package northern.captain.litechat.app.ui.chat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Reply
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -12,10 +17,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import northern.captain.litechat.app.R
 
 private val REACTION_EMOJIS_ROW1 = listOf(
     "\uD83D\uDC4D", // thumbsup
@@ -39,12 +46,15 @@ private val REACTION_EMOJIS_ROW2 = listOf(
     "\uD83D\uDE09"  // wink
 )
 
-private val PICKER_HEIGHT_DP = 112
+private val PICKER_HEIGHT_DP = 180
 
 @Composable
 fun ReactionPicker(
     touchOffset: Offset,
+    hasAttachments: Boolean,
     onEmojiSelected: (String) -> Unit,
+    onReply: () -> Unit,
+    onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val density = LocalDensity.current
@@ -76,9 +86,9 @@ fun ReactionPicker(
             shadowElevation = 8.dp
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
+                // Emoji rows
                 listOf(REACTION_EMOJIS_ROW1, REACTION_EMOJIS_ROW2).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         row.forEach { emoji ->
@@ -97,6 +107,58 @@ fun ReactionPicker(
                                 )
                             }
                         }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                // Reply
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onReply()
+                            onDismiss()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 10.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Reply,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = stringResource(R.string.reply),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                // Save (only if attachments)
+                if (hasAttachments) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSave()
+                                onDismiss()
+                            }
+                            .padding(horizontal = 8.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = stringResource(R.string.save),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
             }

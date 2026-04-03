@@ -1,6 +1,9 @@
 package northern.captain.litechat.app.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -61,6 +64,8 @@ fun MessageBubble(
     onLongPress: (Message, Offset) -> Unit,
     onMediaClick: (attachmentId: String, messageId: String) -> Unit,
     onFileClick: (attachmentId: String, filename: String, mimeType: String) -> Unit,
+    onScrollToMessage: (messageId: String) -> Unit = {},
+    isHighlighted: Boolean = false,
     downloadingAttachmentId: String? = null,
     downloadProgress: Float = 0f,
     modifier: Modifier = Modifier
@@ -93,9 +98,26 @@ fun MessageBubble(
         MaterialTheme.colorScheme.onSurface
     }
 
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val highlightAlpha = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(isHighlighted) {
+        if (isHighlighted) {
+            repeat(2) {
+                highlightAlpha.animateTo(0.2f, androidx.compose.animation.core.tween(300))
+                highlightAlpha.animateTo(0f, androidx.compose.animation.core.tween(300))
+            }
+            highlightAlpha.snapTo(0f)
+        }
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .drawBehind {
+                if (highlightAlpha.value > 0f) {
+                    drawRect(highlightColor.copy(alpha = highlightAlpha.value))
+                }
+            }
             .clickable { doLongPress() }
             .padding(
                 start = if (isOwnMessage) 48.dp else 8.dp,
@@ -166,6 +188,7 @@ fun MessageBubble(
                         Row(
                             modifier = Modifier
                                 .padding(start = 8.dp, end = 8.dp, top = 6.dp)
+                                .clickable { onScrollToMessage(message.referenceMessageId) }
                                 .background(
                                     MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                                     RoundedCornerShape(4.dp)
@@ -175,17 +198,56 @@ fun MessageBubble(
                             Box(
                                 modifier = Modifier
                                     .width(2.dp)
-                                    .height(24.dp)
+                                    .height(28.dp)
                                     .background(MaterialTheme.colorScheme.primary)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Reply to #${message.referenceMessageId}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = textColor.copy(alpha = 0.7f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
+                                Text(
+                                    text = message.referenceMessageSenderName ?: "",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                                if (!message.referenceMessageText.isNullOrBlank()) {
+                                    Text(
+                                        text = message.referenceMessageText,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = textColor.copy(alpha = 0.7f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                } else if (message.referenceMessageFileName != null) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.AttachFile,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(12.dp),
+                                            tint = textColor.copy(alpha = 0.7f)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = message.referenceMessageFileName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = textColor.copy(alpha = 0.7f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                            if (message.referenceMessageThumbnailUrl != null) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                AsyncImage(
+                                    model = message.referenceMessageThumbnailUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                )
+                            }
                         }
                     }
 

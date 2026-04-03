@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +42,23 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     var showReactionPicker by remember { mutableStateOf<Message?>(null) }
     var longPressOffset by remember { mutableStateOf(Offset.Zero) }
+    var highlightedMessageId by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var isErrorSnackbar by remember { mutableStateOf(false) }
+
+    // Show save success
+    val saveSuccess = uiState.saveSuccess
+    val savedToGalleryMsg = stringResource(R.string.saved_to_gallery)
+    val savedToDownloadsMsg = stringResource(R.string.saved_to_downloads)
+    LaunchedEffect(saveSuccess) {
+        if (saveSuccess != null) {
+            val msg = if (saveSuccess == "downloads") savedToDownloadsMsg else savedToGalleryMsg
+            isErrorSnackbar = false
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearSaveSuccess()
+        }
+    }
 
     // Show upload error
     val uploadError = uiState.uploadError
@@ -50,6 +67,7 @@ fun ChatScreen(
     LaunchedEffect(uploadError) {
         if (uploadError != null) {
             val msg = if (uploadError == "too_large") fileTooLargeMsg else uploadFailedMsg
+            isErrorSnackbar = true
             snackbarHostState.showSnackbar(msg)
             viewModel.clearUploadError()
         }
@@ -60,8 +78,23 @@ fun ChatScreen(
     val sendFailedMsg = stringResource(R.string.send_failed)
     LaunchedEffect(sendError) {
         if (sendError) {
+            isErrorSnackbar = true
             snackbarHostState.showSnackbar(sendFailedMsg)
             viewModel.clearSendError()
+        }
+    }
+
+    // Scroll to a specific message (e.g. when tapping reply preview)
+    LaunchedEffect(Unit) {
+        viewModel.scrollToMessageId.collect { messageId ->
+            val msgs = uiState.messages.reversed()
+            val idx = msgs.indexOfFirst { it.id == messageId }
+            if (idx >= 0) {
+                listState.animateScrollToItem(idx)
+                highlightedMessageId = messageId
+                kotlinx.coroutines.delay(1300)
+                highlightedMessageId = null
+            }
         }
     }
 
@@ -100,9 +133,12 @@ fun ChatScreen(
     showReactionPicker?.let { message ->
         ReactionPicker(
             touchOffset = longPressOffset,
+            hasAttachments = message.attachments.isNotEmpty(),
             onEmojiSelected = { emoji ->
                 viewModel.onToggleReaction(message.id, emoji)
             },
+            onReply = { viewModel.onReplyTo(message) },
+            onSave = { viewModel.onSaveAttachments(message) },
             onDismiss = { showReactionPicker = null }
         )
     }
@@ -110,11 +146,15 @@ fun ChatScreen(
     Scaffold(
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                )
+                if (isErrorSnackbar) {
+                    Snackbar(
+                        snackbarData = data,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                } else {
+                    Snackbar(snackbarData = data)
+                }
             }
         },
         topBar = {
@@ -226,6 +266,10 @@ fun ChatScreen(
                         },
                         onMediaClick = onMediaClick,
                         onFileClick = viewModel::onOpenFile,
+                        onScrollToMessage = { messageId ->
+                            viewModel.scrollToMessage(messageId)
+                        },
+                        isHighlighted = highlightedMessageId == message.id,
                         downloadingAttachmentId = uiState.downloadingAttachmentId,
                         downloadProgress = uiState.downloadProgress
                     )

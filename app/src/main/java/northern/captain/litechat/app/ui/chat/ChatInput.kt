@@ -99,13 +99,29 @@ fun ChatInput(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Text(
-                                text = msg.text ?: "",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            if (!msg.text.isNullOrBlank()) {
+                                Text(
+                                    text = msg.text,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (msg.attachments.isNotEmpty()) {
+                            val thumbAtt = msg.attachments.firstOrNull { it.hasThumbnail }
+                            if (thumbAtt != null) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                AsyncImage(
+                                    model = "${northern.captain.litechat.app.config.ApiConfig.BASE_URL}/litechat/api/v1/attachments/${thumbAtt.id}/thumbnail",
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                )
+                            }
                         }
                         IconButton(onClick = onCancelReply) {
                             Icon(

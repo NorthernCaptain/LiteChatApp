@@ -19,8 +19,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import northern.captain.litechat.app.data.remote.dto.AckRequestDto
 import northern.captain.litechat.app.data.remote.dto.TypingRequestDto
@@ -57,7 +60,8 @@ data class ChatUiState(
     val downloadProgress: Float = 0f,
     val uploadError: String? = null,
     val sendError: Boolean = false,
-    val typingUsers: Map<Long, String> = emptyMap()
+    val typingUsers: Map<Long, String> = emptyMap(),
+    val saveSuccess: String? = null
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -86,6 +90,9 @@ class ChatViewModel @Inject constructor(
 
     private val _scrollToBottom = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val scrollToBottom: SharedFlow<Unit> = _scrollToBottom
+
+    private val _scrollToMessageId = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val scrollToMessageId: SharedFlow<String> = _scrollToMessageId
 
     init {
         pollManager.setActiveConversation(conversationId)
@@ -175,7 +182,7 @@ class ChatViewModel @Inject constructor(
     private fun scheduleTypingRemoval(userId: Long) {
         typingRemovalJobs[userId]?.cancel()
         typingRemovalJobs[userId] = viewModelScope.launch {
-            kotlinx.coroutines.delay(6000)
+            delay(6000)
             _uiState.update { it.copy(typingUsers = it.typingUsers - userId) }
         }
     }
@@ -194,6 +201,25 @@ class ChatViewModel @Inject constructor(
                 val latestId = messageRepository.getLatestCachedMessageId(conversationId) ?: return@launch
                 api.acknowledgeRead(conversationId, AckRequestDto(latestId))
             } catch (_: Exception) {}
+        }
+    }
+
+    fun scrollToMessage(messageId: String) {
+        // Check if already in current window
+        val currentMessages = _uiState.value.messages
+        if (currentMessages.any { it.id == messageId }) {
+            _scrollToMessageId.tryEmit(messageId)
+            return
+        }
+        // Message not in window — shift window to include it
+        viewModelScope.launch {
+            val offset = messageRepository.getMessageOffsetFromNewest(conversationId, messageId)
+            // Center the message in the window
+            val newOffset = (offset - WINDOW_SIZE / 2).coerceAtLeast(0)
+            windowOffset.value = newOffset
+            // Wait for Room to emit the new window, then scroll
+            delay(200)
+            _scrollToMessageId.tryEmit(messageId)
         }
     }
 
@@ -237,7 +263,7 @@ class ChatViewModel @Inject constructor(
             // Reset stop-typing timer
             typingStopJob?.cancel()
             typingStopJob = viewModelScope.launch {
-                kotlinx.coroutines.delay(5000)
+                delay(5000)
                 sendTypingEvent(false)
                 lastTypingSent = 0
             }
@@ -467,6 +493,60 @@ class ChatViewModel @Inject constructor(
                 _uiState.update { it.copy(downloadingAttachmentId = null, downloadProgress = 0f) }
             }
         }
+    }
+
+    fun onSaveAttachments(message: northern.captain.litechat.app.domain.model.Message) {
+        viewModelScope.launch {
+            var savedMedia = false
+            var savedFiles = false
+            for (att in message.attachments) {
+                try {
+                    val file = withContext(Dispatchers.IO) {
+                        attachmentRepository.downloadOriginal(att.id, att.originalFilename)
+                    }
+                    val isMedia = att.mimeType.startsWith("image/") || att.mimeType.startsWith("video/")
+                    withContext(Dispatchers.IO) {
+                        val values = android.content.ContentValues().apply {
+                            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, att.originalFilename)
+                            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, att.mimeType)
+                            if (isMedia && att.mimeType.startsWith("image/")) {
+                                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/LiteChat")
+                            } else if (isMedia) {
+                                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Movies/LiteChat")
+                            } else {
+                                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download/LiteChat")
+                            }
+                        }
+                        val uri = if (att.mimeType.startsWith("image/")) {
+                            context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                        } else if (att.mimeType.startsWith("video/")) {
+                            context.contentResolver.insert(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+                        } else {
+                            context.contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                        }
+                        uri?.let { destUri ->
+                            context.contentResolver.openOutputStream(destUri)?.use { out ->
+                                file.inputStream().use { input -> input.copyTo(out) }
+                            }
+                        }
+                    }
+                    if (isMedia) savedMedia = true else savedFiles = true
+                } catch (_: Exception) {}
+            }
+            val result = when {
+                savedMedia && savedFiles -> "both"
+                savedMedia -> "gallery"
+                savedFiles -> "downloads"
+                else -> null
+            }
+            if (result != null) {
+                _uiState.update { it.copy(saveSuccess = result) }
+            }
+        }
+    }
+
+    fun clearSaveSuccess() {
+        _uiState.update { it.copy(saveSuccess = null) }
     }
 
     fun onReplyTo(message: Message) {
