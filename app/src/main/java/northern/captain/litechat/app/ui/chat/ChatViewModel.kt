@@ -294,7 +294,7 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(isSending = true) }
         viewModelScope.launch {
             try {
-                withTimeout(5000) {
+                withTimeout(15000) {
                     messageRepository.sendMessage(
                         conversationId = conversationId,
                         text = text.ifEmpty { null },

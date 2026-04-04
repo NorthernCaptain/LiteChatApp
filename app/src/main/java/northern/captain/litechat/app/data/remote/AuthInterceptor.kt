@@ -37,6 +37,8 @@ class TokenAuthenticator @Inject constructor(
     private val authManager: AuthManager
 ) : Authenticator {
 
+    private val lock = Object()
+
     @Volatile
     private var isRefreshing = false
 
@@ -48,7 +50,7 @@ class TokenAuthenticator @Inject constructor(
         val email = authManager.getEmail() ?: return null
         val password = authManager.getPassword() ?: return null
 
-        synchronized(this) {
+        synchronized(lock) {
             // Check if another thread already refreshed the token
             val currentToken = authManager.getToken()
             val requestToken = response.request.header("Authorization")?.removePrefix("Bearer ")
@@ -60,7 +62,18 @@ class TokenAuthenticator @Inject constructor(
                     .build()
             }
 
-            if (isRefreshing) return null
+            if (isRefreshing) {
+                // Wait for the other thread to finish refreshing
+                while (isRefreshing) {
+                    try { lock.wait(5000); break } catch (_: InterruptedException) { break }
+                }
+                // Retry with whatever token is now available
+                val refreshedToken = authManager.getToken() ?: return null
+                return response.request.newBuilder()
+                    .header("Authorization", "Bearer $refreshedToken")
+                    .header("X-Retry-Auth", "true")
+                    .build()
+            }
             isRefreshing = true
         }
 
@@ -73,7 +86,10 @@ class TokenAuthenticator @Inject constructor(
                 .header("X-Retry-Auth", "true")
                 .build()
         } finally {
-            synchronized(this) { isRefreshing = false }
+            synchronized(lock) {
+                isRefreshing = false
+                lock.notifyAll()
+            }
         }
     }
 

@@ -78,10 +78,12 @@ class PollManager @Inject constructor(
         if (pollJob?.isActive == true) return
 
         pollJob = scope.launch {
+            var consecutiveFailures = 0
             while (isActive) {
                 try {
                     val response = api.poll(PollRequestDto(after = lastEventId))
                     _isConnected.value = true
+                    consecutiveFailures = 0
                     for (event in response.events) {
                         when (event.type) {
                             "message" -> {
@@ -135,7 +137,10 @@ class PollManager @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
-                    _isConnected.value = false
+                    consecutiveFailures++
+                    if (consecutiveFailures >= 2) {
+                        _isConnected.value = false
+                    }
                     delay(2000)
                 }
             }
