@@ -15,8 +15,8 @@ android {
         applicationId = "northern.captain.litechat.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2604021
-        versionName = "0.3.2"
+        versionCode = 2604051
+        versionName = "0.3.5"
     }
 
     buildTypes {

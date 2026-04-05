@@ -294,25 +294,34 @@ class ChatViewModel @Inject constructor(
 
         _uiState.update { it.copy(isSending = true) }
         viewModelScope.launch {
-            try {
-                withTimeout(15000) {
-                    messageRepository.sendMessage(
-                        conversationId = conversationId,
-                        text = text.ifEmpty { null },
-                        referenceMessageId = state.replyToMessage?.id,
-                        attachmentIds = attachmentIds.ifEmpty { null }
-                    )
+            var lastError: Exception? = null
+            for (attempt in 1..2) {
+                try {
+                    withTimeout(15000) {
+                        messageRepository.sendMessage(
+                            conversationId = conversationId,
+                            text = text.ifEmpty { null },
+                            referenceMessageId = state.replyToMessage?.id,
+                            attachmentIds = attachmentIds.ifEmpty { null }
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            inputText = "",
+                            replyToMessage = null,
+                            pendingAttachments = emptyList(),
+                            isSending = false
+                        )
+                    }
+                    _scrollToBottom.tryEmit(Unit)
+                    lastError = null
+                    break
+                } catch (e: Exception) {
+                    lastError = e
+                    if (attempt < 2) delay(1000)
                 }
-                _uiState.update {
-                    it.copy(
-                        inputText = "",
-                        replyToMessage = null,
-                        pendingAttachments = emptyList(),
-                        isSending = false
-                    )
-                }
-                _scrollToBottom.tryEmit(Unit)
-            } catch (_: Exception) {
+            }
+            if (lastError != null) {
                 _uiState.update { it.copy(isSending = false, sendError = true) }
             }
         }

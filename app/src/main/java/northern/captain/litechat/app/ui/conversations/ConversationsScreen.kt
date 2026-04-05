@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import kotlinx.coroutines.launch
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -43,6 +44,7 @@ fun ConversationsScreen(
     onSignOut: () -> Unit,
     onTakeAvatarPhoto: () -> Unit = {},
     onCropAvatar: (filePath: String) -> Unit = {},
+    isSharePicker: Boolean = false,
     viewModel: ConversationsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -236,12 +238,39 @@ fun ConversationsScreen(
                 )
             }
         ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = uiState.isLoading,
-            onRefresh = viewModel::onRefresh,
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+        ) {
+        if (isSharePicker) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Share,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = stringResource(R.string.pick_conversation),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+        PullToRefreshBox(
+            isRefreshing = uiState.isLoading,
+            onRefresh = viewModel::onRefresh,
+            modifier = Modifier.fillMaxSize()
         ) {
             val conversations = uiState.conversations
             val users = uiState.usersWithoutConvo
@@ -293,6 +322,7 @@ fun ConversationsScreen(
                 }
             }
         }
+        } // Column
         }
     }
 }

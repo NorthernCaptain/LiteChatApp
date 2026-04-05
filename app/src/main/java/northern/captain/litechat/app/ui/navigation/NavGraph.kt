@@ -37,7 +37,12 @@ object Routes {
 }
 
 @Composable
-fun NavGraph(authManager: AuthManager? = null, openConversationId: String? = null) {
+fun NavGraph(
+    authManager: AuthManager? = null,
+    openConversationId: String? = null,
+    shareText: String? = null,
+    shareUris: List<android.net.Uri> = emptyList()
+) {
     val navController = rememberNavController()
     val startDestination = if (authManager?.isLoggedIn() == true || authManager?.hasSavedCredentials() == true) {
         Routes.SIGN_IN // still go to sign_in for auto-login flow
@@ -47,6 +52,18 @@ fun NavGraph(authManager: AuthManager? = null, openConversationId: String? = nul
 
     // Handle FCM notification tap — navigate to specific conversation
     var pendingConversationId by remember { mutableStateOf(openConversationId) }
+
+    // Handle share intent data
+    var pendingShareText by remember { mutableStateOf(shareText) }
+    var pendingShareUris by remember { mutableStateOf(shareUris) }
+    val hasShareData = pendingShareText != null || pendingShareUris.isNotEmpty()
+
+    LaunchedEffect(shareText, shareUris) {
+        if (shareText != null || shareUris.isNotEmpty()) {
+            pendingShareText = shareText
+            pendingShareUris = shareUris
+        }
+    }
 
     LaunchedEffect(openConversationId) {
         if (openConversationId != null) {
@@ -104,6 +121,7 @@ fun NavGraph(authManager: AuthManager? = null, openConversationId: String? = nul
             }
 
             ConversationsScreen(
+                isSharePicker = hasShareData,
                 onConversationClick = { conversationId ->
                     navController.navigate(Routes.chat(conversationId))
                 },
@@ -151,6 +169,18 @@ fun NavGraph(authManager: AuthManager? = null, openConversationId: String? = nul
                 backStackEntry.savedStateHandle.remove<String>("camera_result_path")
                 backStackEntry.savedStateHandle.remove<String>("camera_result_mime")
                 backStackEntry.savedStateHandle.remove<Boolean>("camera_result_front")
+            }
+
+            // Handle shared content from other apps
+            LaunchedEffect(Unit) {
+                if (pendingShareText != null || pendingShareUris.isNotEmpty()) {
+                    pendingShareText?.let { viewModel.onInputChange(it) }
+                    if (pendingShareUris.isNotEmpty()) {
+                        viewModel.onAttachmentsPicked(pendingShareUris)
+                    }
+                    pendingShareText = null
+                    pendingShareUris = emptyList()
+                }
             }
 
             ChatScreen(
