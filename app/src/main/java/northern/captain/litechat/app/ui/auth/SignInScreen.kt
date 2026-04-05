@@ -73,36 +73,68 @@ fun SignInScreen(
         return
     }
 
-    if (uiState.autoLoginFailed) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(32.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.error_auto_login),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(
-                    onClick = viewModel::onRetryAutoLogin,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Text(stringResource(R.string.retry))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedButton(
-                    onClick = viewModel::onGoToSignIn,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = MaterialTheme.shapes.medium
-                ) {
+    var showSignInConfirm by remember { mutableStateOf(false) }
+
+    if (showSignInConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSignInConfirm = false },
+            title = { Text(stringResource(R.string.sign_in)) },
+            text = { Text(stringResource(R.string.sign_in_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSignInConfirm = false
+                    viewModel.onGoToSignIn()
+                }) {
                     Text(stringResource(R.string.sign_in))
                 }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignInConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (uiState.autoLoginFailed) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(64.dp))
+            Image(
+                painter = painterResource(R.drawable.chatwelcome),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .widthIn(max = 200.dp)
+                    .clip(RoundedCornerShape(28.dp))
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = stringResource(R.string.error_auto_login),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = viewModel::onRetryAutoLogin,
+                modifier = Modifier
+                    .padding(horizontal = 32.dp)
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text(stringResource(R.string.retry))
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            TextButton(
+                onClick = { showSignInConfirm = true },
+            ) {
+                Text(stringResource(R.string.sign_in))
             }
         }
         return

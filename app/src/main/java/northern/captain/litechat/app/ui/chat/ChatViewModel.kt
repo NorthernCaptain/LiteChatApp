@@ -58,6 +58,7 @@ data class ChatUiState(
     val isInitialLoading: Boolean = true,
     val downloadingAttachmentId: String? = null,
     val downloadProgress: Float = 0f,
+    val isChunkedDownload: Boolean = false,
     val uploadError: String? = null,
     val sendError: Boolean = false,
     val typingUsers: Map<Long, String> = emptyMap(),
@@ -349,8 +350,13 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val tempFile = copyUriToTempFile(uri, filename)
+                val effectiveMime = withContext(Dispatchers.IO) {
+                    if (mimeType.startsWith("image/")) {
+                        northern.captain.litechat.app.data.util.ImageProcessor.processForUpload(tempFile)
+                    } else mimeType
+                }
                 var lastReported = 0f
-                val attachment = attachmentRepository.uploadAttachment(tempFile, mimeType) { progress ->
+                val attachment = attachmentRepository.uploadAttachment(tempFile, effectiveMime) { progress ->
                     if (progress - lastReported >= 0.01f || progress >= 1f) {
                         lastReported = progress
                         _uiState.update { state ->
@@ -392,7 +398,7 @@ class ChatViewModel @Inject constructor(
         uris.forEach { onAttachmentPicked(it) }
     }
 
-    fun onCameraFileCaptured(file: File, mimeType: String) {
+    fun onCameraFileCaptured(file: File, mimeType: String, isFrontCamera: Boolean = false) {
         val localId = java.util.UUID.randomUUID().toString()
         val placeholder = PendingAttachment(
             localId = localId,
@@ -406,8 +412,14 @@ class ChatViewModel @Inject constructor(
         }
         viewModelScope.launch {
             try {
+                // Rotation + flip already applied by CameraScreen, only resize/re-encode here
+                val effectiveMime = withContext(Dispatchers.IO) {
+                    if (mimeType.startsWith("image/")) {
+                        northern.captain.litechat.app.data.util.ImageProcessor.processForUpload(file)
+                    } else mimeType
+                }
                 var lastReported = 0f
-                val attachment = attachmentRepository.uploadAttachment(file, mimeType) { progress ->
+                val attachment = attachmentRepository.uploadAttachment(file, effectiveMime) { progress ->
                     if (progress - lastReported >= 0.01f || progress >= 1f) {
                         lastReported = progress
                         _uiState.update { state ->
@@ -460,22 +472,27 @@ class ChatViewModel @Inject constructor(
 
     fun onOpenFile(attachmentId: String, filename: String, mimeType: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(downloadingAttachmentId = attachmentId, downloadProgress = 0f) }
+            _uiState.update { it.copy(downloadingAttachmentId = attachmentId, downloadProgress = 0f, isChunkedDownload = false) }
             try {
                 val att = messageRepository.getAttachment(attachmentId)
                 val knownSize = att?.size ?: 0L
                 var lastReported = 0f
-                val file = attachmentRepository.downloadOriginal(attachmentId, filename, knownSize) { progress ->
-                    if (progress - lastReported >= 0.01f || progress >= 1f) {
-                        lastReported = progress
-                        _uiState.update { state ->
-                            if (progress > state.downloadProgress) {
-                                state.copy(downloadProgress = progress)
-                            } else state
+                val file = attachmentRepository.downloadOriginal(attachmentId, filename, knownSize,
+                    onProgress = { progress ->
+                        if (progress - lastReported >= 0.01f || progress >= 1f) {
+                            lastReported = progress
+                            _uiState.update { state ->
+                                if (progress > state.downloadProgress) {
+                                    state.copy(downloadProgress = progress)
+                                } else state
+                            }
                         }
+                    },
+                    onChunkedMode = { chunked ->
+                        _uiState.update { it.copy(isChunkedDownload = chunked) }
                     }
-                }
-                _uiState.update { it.copy(downloadingAttachmentId = null, downloadProgress = 0f) }
+                )
+                _uiState.update { it.copy(downloadingAttachmentId = null, downloadProgress = 0f, isChunkedDownload = false) }
                 val uri = androidx.core.content.FileProvider.getUriForFile(
                     context,
                     "${context.packageName}.fileprovider",
@@ -490,7 +507,7 @@ class ChatViewModel @Inject constructor(
                 }
                 context.startActivity(chooser)
             } catch (_: Exception) {
-                _uiState.update { it.copy(downloadingAttachmentId = null, downloadProgress = 0f) }
+                _uiState.update { it.copy(downloadingAttachmentId = null, downloadProgress = 0f, isChunkedDownload = false) }
             }
         }
     }

@@ -29,6 +29,7 @@ data class MediaItem(
     val localFilePath: String? = null,
     val isLoading: Boolean = true,
     val downloadProgress: Float = 0f,
+    val isChunkedDownload: Boolean = false,
     val error: String? = null
 )
 
@@ -72,7 +73,7 @@ class FullscreenMediaViewModel @Inject constructor(
                         isVideo = isVideo,
                         originalUrl = "$baseUrl/litechat/api/v1/attachments/${att.id}",
                         thumbnailUrl = if (att.hasThumbnail) "$baseUrl/litechat/api/v1/attachments/${att.id}/thumbnail" else null,
-                        isLoading = isVideo
+                        isLoading = true
                     )
                 }
 
@@ -82,9 +83,9 @@ class FullscreenMediaViewModel @Inject constructor(
                     it.copy(items = items, initialPage = initialPage, isLoaded = true)
                 }
 
-                // Pre-download video for the initial page
+                // Pre-download media for the initial page
                 items.getOrNull(initialPage)?.let { item ->
-                    if (item.isVideo) downloadVideo(item.attachmentId, item.filename)
+                    downloadMedia(item.attachmentId, item.filename)
                 }
             } catch (e: Exception) {
                 _uiState.update {
@@ -108,29 +109,52 @@ class FullscreenMediaViewModel @Inject constructor(
 
     fun onPageSelected(page: Int) {
         val item = _uiState.value.items.getOrNull(page) ?: return
-        if (item.isVideo && item.localFilePath == null && item.isLoading) {
-            downloadVideo(item.attachmentId, item.filename)
+        if (item.localFilePath == null && item.isLoading) {
+            downloadMedia(item.attachmentId, item.filename)
         }
     }
 
-    private fun downloadVideo(attId: String, filename: String) {
+    fun retryDownload(attachmentId: String, filename: String) {
+        _uiState.update { state ->
+            state.copy(items = state.items.map { item ->
+                if (item.attachmentId == attachmentId) item.copy(
+                    error = null,
+                    isLoading = true,
+                    downloadProgress = 0f
+                ) else item
+            })
+        }
+        downloadMedia(attachmentId, filename)
+    }
+
+    private fun downloadMedia(attId: String, filename: String) {
         val item = _uiState.value.items.find { it.attachmentId == attId } ?: return
         viewModelScope.launch {
             try {
                 var lastReportedProgress = 0f
                 val localFile = withContext(Dispatchers.IO) {
-                    attachmentRepository.downloadOriginal(attId, filename, item.size) { progress ->
-                        if (progress - lastReportedProgress >= 0.01f || progress >= 1f) {
-                            lastReportedProgress = progress
+                    attachmentRepository.downloadOriginal(attId, filename, item.size,
+                        onProgress = { progress ->
+                            if (progress - lastReportedProgress >= 0.01f || progress >= 1f) {
+                                lastReportedProgress = progress
+                                _uiState.update { state ->
+                                    state.copy(items = state.items.map { i ->
+                                        if (i.attachmentId == attId && progress > i.downloadProgress) {
+                                            i.copy(downloadProgress = progress)
+                                        } else i
+                                    })
+                                }
+                            }
+                        },
+                        onChunkedMode = { chunked ->
                             _uiState.update { state ->
                                 state.copy(items = state.items.map { i ->
-                                    if (i.attachmentId == attId && progress > i.downloadProgress) {
-                                        i.copy(downloadProgress = progress)
-                                    } else i
+                                    if (i.attachmentId == attId) i.copy(isChunkedDownload = chunked)
+                                    else i
                                 })
                             }
                         }
-                    }
+                    )
                 }
                 _uiState.update { state ->
                     state.copy(items = state.items.map { item ->

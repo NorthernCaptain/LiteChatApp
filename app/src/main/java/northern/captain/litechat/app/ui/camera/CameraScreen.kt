@@ -46,11 +46,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import android.view.WindowManager
-import androidx.exifinterface.media.ExifInterface
 import northern.captain.litechat.app.R
 import java.io.File
 import java.text.SimpleDateFormat
@@ -62,7 +58,7 @@ import java.util.concurrent.Executors
 fun CameraScreen(
     mode: String, // "photo" or "video"
     defaultLensFacing: Int = CameraSelector.LENS_FACING_BACK,
-    onResult: (File?) -> Unit,
+    onResult: (file: File?, isFrontCamera: Boolean) -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -116,6 +112,7 @@ fun CameraScreen(
 
     // Captured file for preview/confirmation
     var capturedFile by remember { mutableStateOf<File?>(null) }
+    var wasFrontCamera by remember { mutableStateOf(false) }
 
     if (capturedFile != null) {
         CapturePreviewScreen(
@@ -126,7 +123,7 @@ fun CameraScreen(
                 capturedFile = null
             },
             onSend = {
-                onResult(capturedFile)
+                onResult(capturedFile, wasFrontCamera)
             },
             onBack = {
                 capturedFile!!.delete()
@@ -137,7 +134,10 @@ fun CameraScreen(
         CameraViewfinder(
             isVideo = isVideo,
             defaultLensFacing = defaultLensFacing,
-            onCaptured = { file -> capturedFile = file },
+            onCaptured = { file, isFront ->
+                capturedFile = file
+                wasFrontCamera = isFront
+            },
             onNavigateBack = onNavigateBack
         )
     }
@@ -147,7 +147,7 @@ fun CameraScreen(
 private fun CameraViewfinder(
     isVideo: Boolean,
     defaultLensFacing: Int = CameraSelector.LENS_FACING_BACK,
-    onCaptured: (File) -> Unit,
+    onCaptured: (File, Boolean) -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -318,13 +318,13 @@ private fun CameraViewfinder(
                                                     activeRecording = null
                                                     if (!dismissed) {
                                                         if (!event.hasError()) {
-                                                            onCaptured(file)
+                                                            onCaptured(file, lensFacing == CameraSelector.LENS_FACING_FRONT)
                                                         } else {
                                                             file.delete()
                                                         }
                                                     } else {
                                                         if (!event.hasError()) {
-                                                            onCaptured(file)
+                                                            onCaptured(file, lensFacing == CameraSelector.LENS_FACING_FRONT)
                                                         } else {
                                                             file.delete()
                                                             onNavigateBack()
@@ -376,8 +376,9 @@ private fun CameraViewfinder(
                                 object : ImageCapture.OnImageSavedCallback {
                                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
                                         val isFront = lensFacing == CameraSelector.LENS_FACING_FRONT
-                                        normalizeImageRotation(file, isFront)
-                                        mainExecutor.execute { onCaptured(file) }
+                                        // Apply rotation + flip so preview looks correct
+                                        northern.captain.litechat.app.data.util.ImageProcessor.applyRotationAndFlip(file, isFront)
+                                        mainExecutor.execute { onCaptured(file, isFront) }
                                     }
                                     override fun onError(exception: ImageCaptureException) {
                                         mainExecutor.execute { isCapturing = false }
@@ -533,38 +534,6 @@ private fun VideoPreviewPlayer(
         },
         modifier = modifier
     )
-}
-
-private fun normalizeImageRotation(file: File, isFrontCamera: Boolean) {
-    try {
-        val exif = ExifInterface(file)
-        val orientation = exif.getAttributeInt(
-            ExifInterface.TAG_ORIENTATION,
-            ExifInterface.ORIENTATION_NORMAL
-        )
-        val degrees = when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-            else -> 0f
-        }
-        if (degrees == 0f && !isFrontCamera) return
-
-        val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return
-        val matrix = Matrix().apply {
-            if (degrees != 0f) postRotate(degrees)
-            if (isFrontCamera) postScale(-1f, 1f)
-        }
-        val transformed = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        bitmap.recycle()
-        file.outputStream().use { out ->
-            transformed.compress(Bitmap.CompressFormat.JPEG, 95, out)
-        }
-        transformed.recycle()
-        val newExif = ExifInterface(file)
-        newExif.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
-        newExif.saveAttributes()
-    } catch (_: Exception) {}
 }
 
 private fun formatDuration(totalSeconds: Int): String {

@@ -68,6 +68,7 @@ fun MessageBubble(
     isHighlighted: Boolean = false,
     downloadingAttachmentId: String? = null,
     downloadProgress: Float = 0f,
+    isChunkedDownload: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -179,7 +180,8 @@ fun MessageBubble(
                             onMediaClick = onMediaClick,
                             onFileClick = onFileClick,
                             downloadingAttachmentId = downloadingAttachmentId,
-                            downloadProgress = downloadProgress
+                            downloadProgress = downloadProgress,
+                            isChunkedDownload = isChunkedDownload
                         )
                     }
 
@@ -336,7 +338,8 @@ private fun AttachmentThumbnails(
     onMediaClick: (attachmentId: String, messageId: String) -> Unit,
     onFileClick: (attachmentId: String, filename: String, mimeType: String) -> Unit,
     downloadingAttachmentId: String?,
-    downloadProgress: Float
+    downloadProgress: Float,
+    isChunkedDownload: Boolean
 ) {
     val imageAttachments = attachments.filter {
         it.mimeType.startsWith("image/") || it.mimeType.startsWith("video/")
@@ -397,16 +400,19 @@ private fun AttachmentThumbnails(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isDownloading) {
+                    val progressColor = if (isChunkedDownload) Color(0xFFFFD600) else MaterialTheme.colorScheme.primary
                     if (downloadProgress > 0f) {
                         CircularProgressIndicator(
                             progress = { downloadProgress },
                             modifier = Modifier.size(16.dp),
+                            color = progressColor,
                             strokeWidth = 2.dp,
-                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                            trackColor = progressColor.copy(alpha = 0.2f)
                         )
                     } else {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
+                            color = progressColor,
                             strokeWidth = 2.dp
                         )
                     }

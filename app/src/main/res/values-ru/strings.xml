@@ -11,6 +11,7 @@
     <string name="error_network">Ошибка сети. Попробуйте снова.</string>
     <string name="error_empty_fields">Введите email и пароль</string>
     <string name="error_auto_login">Не удалось войти автоматически. Сервер может быть недоступен.</string>
+    <string name="sign_in_confirm">Это удалит все локальные данные, включая кэшированные сообщения и вложения. Продолжить?</string>
     <string name="retry">Повторить</string>
 
     <!-- Conversations -->

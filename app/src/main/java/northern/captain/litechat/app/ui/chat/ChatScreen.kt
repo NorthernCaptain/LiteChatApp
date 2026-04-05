@@ -271,7 +271,8 @@ fun ChatScreen(
                         },
                         isHighlighted = highlightedMessageId == message.id,
                         downloadingAttachmentId = uiState.downloadingAttachmentId,
-                        downloadProgress = uiState.downloadProgress
+                        downloadProgress = uiState.downloadProgress,
+                        isChunkedDownload = uiState.isChunkedDownload
                     )
                 }
             }

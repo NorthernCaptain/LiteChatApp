@@ -53,6 +53,13 @@ interface LiteChatApi {
     @GET("litechat/api/v1/attachments/{id}")
     suspend fun downloadAttachment(@Path("id") id: String): ResponseBody
 
+    @Streaming
+    @GET("litechat/api/v1/attachments/{id}")
+    suspend fun downloadAttachmentRange(
+        @Path("id") id: String,
+        @Header("Range") range: String
+    ): ResponseBody
+
     @GET("litechat/api/v1/attachments/{id}/thumbnail")
     suspend fun downloadThumbnail(@Path("id") id: String): ResponseBody
 

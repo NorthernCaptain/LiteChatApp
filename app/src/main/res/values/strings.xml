@@ -11,6 +11,7 @@
     <string name="error_network">Network error. Please try again.</string>
     <string name="error_empty_fields">Please enter email and password</string>
     <string name="error_auto_login">Could not sign in automatically. The server may be unavailable.</string>
+    <string name="sign_in_confirm">This will clear all local data including cached messages and attachments. Continue?</string>
     <string name="retry">Retry</string>
 
     <!-- Conversations -->

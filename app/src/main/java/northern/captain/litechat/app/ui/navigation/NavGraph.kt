@@ -122,7 +122,7 @@ fun NavGraph(authManager: AuthManager? = null, openConversationId: String? = nul
             CameraScreen(
                 mode = "photo",
                 defaultLensFacing = CameraSelector.LENS_FACING_FRONT,
-                onResult = { file ->
+                onResult = { file, _ ->
                     if (file != null) {
                         navController.previousBackStackEntry?.savedStateHandle?.set("camera_result_path", file.absolutePath)
                     }
@@ -146,9 +146,11 @@ fun NavGraph(authManager: AuthManager? = null, openConversationId: String? = nul
             LaunchedEffect(resultPath) {
                 val path = resultPath ?: return@LaunchedEffect
                 val mime = backStackEntry.savedStateHandle.get<String>("camera_result_mime") ?: "image/jpeg"
-                viewModel.onCameraFileCaptured(File(path), mime)
+                val isFront = backStackEntry.savedStateHandle.get<Boolean>("camera_result_front") ?: false
+                viewModel.onCameraFileCaptured(File(path), mime, isFront)
                 backStackEntry.savedStateHandle.remove<String>("camera_result_path")
                 backStackEntry.savedStateHandle.remove<String>("camera_result_mime")
+                backStackEntry.savedStateHandle.remove<Boolean>("camera_result_front")
             }
 
             ChatScreen(
@@ -165,10 +167,11 @@ fun NavGraph(authManager: AuthManager? = null, openConversationId: String? = nul
         composable(Routes.CAMERA_PHOTO) {
             CameraScreen(
                 mode = "photo",
-                onResult = { file ->
+                onResult = { file, isFront ->
                     if (file != null) {
                         navController.previousBackStackEntry?.savedStateHandle?.set("camera_result_path", file.absolutePath)
                         navController.previousBackStackEntry?.savedStateHandle?.set("camera_result_mime", "image/jpeg")
+                        navController.previousBackStackEntry?.savedStateHandle?.set("camera_result_front", isFront)
                     }
                     navController.popBackStack()
                 },
@@ -196,7 +199,7 @@ fun NavGraph(authManager: AuthManager? = null, openConversationId: String? = nul
         composable(Routes.CAMERA_VIDEO) {
             CameraScreen(
                 mode = "video",
-                onResult = { file ->
+                onResult = { file, _ ->
                     if (file != null) {
                         navController.previousBackStackEntry?.savedStateHandle?.set("camera_result_path", file.absolutePath)
                         navController.previousBackStackEntry?.savedStateHandle?.set("camera_result_mime", "video/mp4")

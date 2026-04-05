@@ -27,8 +27,6 @@ import androidx.media3.common.MediaItem as ExoMediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
 import northern.captain.litechat.app.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,7 +81,11 @@ fun FullscreenMediaScreen(
             key = { items[it].attachmentId }
         ) { page ->
             val item = items[page]
-            MediaPage(item = item, isCurrentPage = page == pagerState.currentPage)
+            MediaPage(
+                item = item,
+                isCurrentPage = page == pagerState.currentPage,
+                onRetry = { viewModel.retryDownload(item.attachmentId, item.filename) }
+            )
         }
 
         // Top bar overlay
@@ -116,7 +118,8 @@ fun FullscreenMediaScreen(
 @Composable
 private fun MediaPage(
     item: MediaItem,
-    isCurrentPage: Boolean
+    isCurrentPage: Boolean,
+    onRetry: () -> Unit
 ) {
     when {
         item.error != null -> {
@@ -124,10 +127,16 @@ private fun MediaPage(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = stringResource(R.string.error_loading_media),
-                    color = Color.White
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = stringResource(R.string.error_loading_media),
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    TextButton(onClick = { onRetry() }) {
+                        Text(stringResource(R.string.retry), color = Color.White)
+                    }
+                }
             }
         }
         item.isVideo -> {
@@ -144,14 +153,15 @@ private fun MediaPage(
                             modifier = Modifier.fillMaxSize()
                         )
                     }
+                    val progressColor = if (item.isChunkedDownload) Color(0xFFFFD600) else Color.White
                     if (item.downloadProgress > 0f) {
                         CircularProgressIndicator(
                             progress = { item.downloadProgress },
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.3f)
+                            color = progressColor,
+                            trackColor = progressColor.copy(alpha = 0.3f)
                         )
                     } else {
-                        CircularProgressIndicator(color = Color.White)
+                        CircularProgressIndicator(color = progressColor)
                     }
                 }
             } else {
@@ -163,69 +173,71 @@ private fun MediaPage(
             }
         }
         else -> {
-            var scale by remember { mutableFloatStateOf(1f) }
-            var offsetX by remember { mutableFloatStateOf(0f) }
-            var offsetY by remember { mutableFloatStateOf(0f) }
-
-            SubcomposeAsyncImage(
-                model = item.originalUrl,
-                contentDescription = item.filename,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = offsetX,
-                        translationY = offsetY
-                    )
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            awaitFirstDown()
-                            do {
-                                val event = awaitPointerEvent()
-                                val zoom = event.calculateZoom()
-                                val pan = event.calculatePan()
-                                val newScale = (scale * zoom).coerceIn(1f, 5f)
-                                if (newScale != 1f || zoom != 1f) {
-                                    // Consume only when actually zooming or panning while zoomed
-                                    event.changes.forEach { it.consume() }
-                                    scale = newScale
-                                    if (scale > 1f) {
-                                        offsetX += pan.x
-                                        offsetY += pan.y
-                                    } else {
-                                        offsetX = 0f
-                                        offsetY = 0f
-                                    }
-                                }
-                                // When scale == 1f and no pinch, don't consume — let pager handle swipe
-                            } while (event.changes.any { it.pressed })
-                        }
-                    },
-                loading = {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = Color.White)
-                    }
-                },
-                error = {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = stringResource(R.string.error_loading_media),
-                            color = Color.White
+            if (item.isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    item.thumbnailUrl?.let { url ->
+                        AsyncImage(
+                            model = url,
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
-                },
-                success = {
-                    SubcomposeAsyncImageContent()
+                    val progressColor = if (item.isChunkedDownload) Color(0xFFFFD600) else Color.White
+                    if (item.downloadProgress > 0f) {
+                        CircularProgressIndicator(
+                            progress = { item.downloadProgress },
+                            color = progressColor,
+                            trackColor = progressColor.copy(alpha = 0.3f)
+                        )
+                    } else {
+                        CircularProgressIndicator(color = progressColor)
+                    }
                 }
-            )
+            } else {
+                var scale by remember { mutableFloatStateOf(1f) }
+                var offsetX by remember { mutableFloatStateOf(0f) }
+                var offsetY by remember { mutableFloatStateOf(0f) }
+
+                AsyncImage(
+                    model = java.io.File(item.localFilePath ?: ""),
+                    contentDescription = item.filename,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offsetX,
+                            translationY = offsetY
+                        )
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown()
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val zoom = event.calculateZoom()
+                                    val pan = event.calculatePan()
+                                    val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                    if (newScale != 1f || zoom != 1f) {
+                                        event.changes.forEach { it.consume() }
+                                        scale = newScale
+                                        if (scale > 1f) {
+                                            offsetX += pan.x
+                                            offsetY += pan.y
+                                        } else {
+                                            offsetX = 0f
+                                            offsetY = 0f
+                                        }
+                                    }
+                                } while (event.changes.any { it.pressed })
+                            }
+                        }
+                )
+            }
         }
     }
 }
